@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket
+from fastapi.responses import FileResponse
+from pathlib import Path
+import os
+import tempfile
+import zipfile
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -8,6 +13,7 @@ import logging
 from ...database import get_db
 from ...services.shared_recorder import get_recorder_service
 from ...services.cache_service import CacheService
+from ...config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -188,6 +194,97 @@ async def export_session_data(
     except Exception as e:
         logger.error(f"导出会话数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"导出会话数据失败: {str(e)}")
+
+
+@router.get("/download/{session_id}")
+async def download_session_folder(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+):
+    """下载整个会话目录（zip 打包）"""
+    safe_session_id = Path(session_id).name
+    if safe_session_id != session_id or any(sep in session_id for sep in ("/", "\\")):
+        raise HTTPException(status_code=400, detail="非法的 session_id")
+
+    # 先尝试直接匹配
+    session_dir = Path(settings.data_dir) / "sessions" / safe_session_id
+    actual_folder_name = safe_session_id
+    
+    # 如果直接匹配失败，尝试在sessions目录中查找对应的文件夹
+    if not session_dir.exists() or not session_dir.is_dir():
+        sessions_base_dir = Path(settings.data_dir) / "sessions"
+        if not sessions_base_dir.exists():
+            raise HTTPException(status_code=404, detail="sessions目录不存在")
+            
+        # 获取recorder_service来查找session映射
+        try:
+            recorder_service = get_recorder_service()
+            sessions = await recorder_service.list_sessions()
+            
+            # 查找对应的session数据来获取真实的目录名
+            target_session = None
+            for s in sessions:
+                if s.get("session_id") == session_id:
+                    target_session = s
+                    break
+            
+            if target_session:
+                # 如果session是时间戳格式，使用该格式查找目录
+                session_name = target_session.get("session_name", "")
+                if session_name.startswith("session_") and len(session_name) > 8:
+                    potential_dir = sessions_base_dir / session_name
+                    if potential_dir.exists() and potential_dir.is_dir():
+                        session_dir = potential_dir
+                        actual_folder_name = session_name
+                    else:
+                        # 尝试直接在sessions目录中查找匹配的文件夹
+                        for item in sessions_base_dir.iterdir():
+                            if item.is_dir() and (item.name.startswith(f"session_") or session_id in item.name):
+                                session_dir = item
+                                actual_folder_name = item.name
+                                break
+            
+        except Exception as e:
+            logger.warning(f"查找session目录时出错: {e}")
+            
+        # 最后检查是否找到了有效目录
+        if not session_dir.exists() or not session_dir.is_dir():
+            raise HTTPException(status_code=404, detail=f"会话目录不存在: {session_id}")
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{safe_session_id}.zip")
+    tmp_file_path = Path(tmp_file.name)
+    tmp_file.close()
+
+    try:
+        with zipfile.ZipFile(tmp_file_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(session_dir):
+                root_path = Path(root)
+                rel_root = root_path.relative_to(session_dir)
+
+                if not files and not dirs:
+                    zf.writestr(f"{actual_folder_name}/{rel_root.as_posix()}/", "")
+
+                for file_name in files:
+                    file_path = root_path / file_name
+                    rel_file = file_path.relative_to(session_dir)
+                    zf.write(file_path, arcname=f"{actual_folder_name}/{rel_file.as_posix()}")
+
+        background_tasks.add_task(lambda p: os.path.exists(p) and os.remove(p), str(tmp_file_path))
+        return FileResponse(
+            path=str(tmp_file_path),
+            media_type="application/zip",
+            filename=f"{safe_session_id}.zip",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            if tmp_file_path.exists():
+                tmp_file_path.unlink()
+        except Exception:
+            pass
+        logger.error(f"打包会话目录失败: {e}")
+        raise HTTPException(status_code=500, detail=f"打包会话目录失败: {str(e)}")
 
 @router.websocket("/progress/{session_id}")
 async def crawler_progress_websocket(websocket: WebSocket, session_id: str):

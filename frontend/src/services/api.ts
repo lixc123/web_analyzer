@@ -199,6 +199,14 @@ export const crawlerApi = {
   exportSession: async (sessionId: string, format: 'json' | 'csv' | 'har' = 'json'): Promise<any> => {
     const response = await apiClient.post(`/crawler/export/${sessionId}`, { format })
     return response.data
+  },
+
+  // 下载会话目录（zip）
+  downloadSessionZip: async (sessionId: string): Promise<Blob> => {
+    const response = await apiClient.get(`/crawler/download/${sessionId}`, {
+      responseType: 'blob'
+    })
+    return response.data
   }
 }
 

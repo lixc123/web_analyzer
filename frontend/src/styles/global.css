@@ -5,6 +5,75 @@
   box-sizing: border-box;
 }
 
+:root {
+  --wa-bg: #f0f2f5;
+  --wa-surface: #ffffff;
+  --wa-text: rgba(0, 0, 0, 0.85);
+  --wa-text-secondary: rgba(0, 0, 0, 0.45);
+  --wa-border: #f0f0f0;
+  --wa-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --wa-scroll-track: #f1f1f1;
+  --wa-scroll-thumb: #c1c1c1;
+  --wa-scroll-thumb-hover: #a8a8a8;
+  --wa-code-bg: #f6f8fa;
+  --wa-code-border: #e1e8ed;
+}
+
+html[data-theme='dark'] {
+  --wa-bg: #000000;
+  --wa-surface: #141414;
+  --wa-text: rgba(255, 255, 255, 0.88);
+  --wa-text-secondary: rgba(255, 255, 255, 0.65);
+  --wa-border: #303030;
+  --wa-shadow: none;
+  --wa-scroll-track: rgba(255, 255, 255, 0.06);
+  --wa-scroll-thumb: rgba(255, 255, 255, 0.22);
+  --wa-scroll-thumb-hover: rgba(255, 255, 255, 0.35);
+  --wa-code-bg: #1f2328;
+  --wa-code-border: #30363d;
+}
+
+html[data-theme='dark'] .ant-card,
+html[data-theme='dark'] .ant-card-head,
+html[data-theme='dark'] .ant-card-body {
+  background: var(--wa-surface);
+}
+
+html[data-theme='dark'] .ant-card,
+html[data-theme='dark'] .ant-card-bordered,
+html[data-theme='dark'] .ant-card-head {
+  border-color: var(--wa-border) !important;
+}
+
+html[data-theme='dark'] .ant-input,
+html[data-theme='dark'] .ant-input-affix-wrapper,
+html[data-theme='dark'] .ant-input-number,
+html[data-theme='dark'] .ant-select-selector {
+  background: var(--wa-surface) !important;
+  border-color: var(--wa-border) !important;
+  color: var(--wa-text) !important;
+}
+
+html[data-theme='dark'] .ant-table,
+html[data-theme='dark'] .ant-table-container,
+html[data-theme='dark'] .ant-table-content {
+  background: var(--wa-surface);
+}
+
+html[data-theme='dark'] .ant-table-thead > tr > th {
+  background: #1f1f1f !important;
+  color: var(--wa-text) !important;
+  border-color: var(--wa-border) !important;
+}
+
+html[data-theme='dark'] .ant-table-tbody > tr > td {
+  border-color: var(--wa-border) !important;
+}
+
+html[data-theme='dark'] .ant-table-tbody > tr:hover > td {
+  background: #262626 !important;
+}
+
 html,
 body {
   height: 100%;
@@ -12,8 +81,9 @@ body {
     'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5715;
-  color: rgba(0, 0, 0, 0.85);
-  background-color: #f0f2f5;
+  color: var(--wa-text);
+  background-color: var(--wa-bg);
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -29,17 +99,17 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--wa-scroll-track);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--wa-scroll-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--wa-scroll-thumb-hover);
 }
 
 /* 通用工具类 */
@@ -115,9 +185,10 @@ body {
 /* 自定义组件样式 */
 .page-container {
   padding: 24px;
-  background: #fff;
+  background: var(--wa-surface);
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--wa-shadow);
+  border: 1px solid var(--wa-border);
 }
 
 .page-header {
@@ -126,19 +197,19 @@ body {
   justify-content: space-between;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--wa-border);
 }
 
 .page-title {
   font-size: 20px;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--wa-text);
   margin: 0;
 }
 
 .page-description {
   margin-top: 8px;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--wa-text-secondary);
   font-size: 14px;
 }
 
@@ -226,8 +297,8 @@ body {
 
 /* 代码块样式 */
 .code-block {
-  background: #f6f8fa;
-  border: 1px solid #e1e8ed;
+  background: var(--wa-code-bg);
+  border: 1px solid var(--wa-code-border);
   border-radius: 4px;
   padding: 16px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -237,8 +308,8 @@ body {
 }
 
 .code-inline {
-  background: #f6f8fa;
-  border: 1px solid #e1e8ed;
+  background: var(--wa-code-bg);
+  border: 1px solid var(--wa-code-border);
   border-radius: 3px;
   padding: 2px 4px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;

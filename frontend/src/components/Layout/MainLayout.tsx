@@ -159,13 +159,17 @@ const MainLayout: React.FC = () => {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       {/* 侧边栏 */}
       <Sider 
         trigger={null} 
         collapsible 
         collapsed={sidebarCollapsed}
         style={{
+          height: '100vh',
+          position: 'sticky',
+          top: 0,
+          overflow: 'auto',
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorder}`
         }}
@@ -210,7 +214,7 @@ const MainLayout: React.FC = () => {
       </Sider>
 
       {/* 主内容区域 */}
-      <Layout>
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
         {/* 顶部导航栏 */}
         <Header 
           style={{ 
@@ -221,7 +225,10 @@ const MainLayout: React.FC = () => {
             lineHeight: 'normal',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
           }}
         >
           {/* 左侧：折叠按钮和页面标题 */}
@@ -322,7 +329,9 @@ const MainLayout: React.FC = () => {
             margin: '16px',
             padding: 0,
             background: 'transparent',
-            overflow: 'auto'
+            overflow: 'auto',
+            flex: 1,
+            minHeight: 0,
           }}
         >
           <Outlet />

@@ -18,7 +18,7 @@ const App: React.FC = () => {
   useWebSocket()
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Routes>
         {/* 主应用路由 */}
         <Route path="/" element={<MainLayout />}>

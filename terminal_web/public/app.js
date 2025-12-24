@@ -25,6 +25,48 @@ term.loadAddon(webLinksAddon);
 // Open terminal in the DOM
 term.open(document.getElementById('terminal'));
 
+term.attachCustomKeyEventHandler((e) => {
+  if (e.type !== 'keydown') return true;
+
+  const isMac = navigator.platform.toLowerCase().includes('mac');
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+  if (!mod) return true;
+
+  const isC = e.code === 'KeyC' || e.key === 'c' || e.key === 'C';
+  const isV = e.code === 'KeyV' || e.key === 'v' || e.key === 'V';
+
+  if (isC && term.hasSelection()) {
+    const text = term.getSelection();
+    if (text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {});
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+        } catch {}
+        document.body.removeChild(textarea);
+      }
+    }
+    return false;
+  }
+
+  if (isV) {
+    if (!(navigator.clipboard && navigator.clipboard.readText)) return true;
+    navigator.clipboard.readText().then((text) => {
+      if (text && socket.connected) socket.emit('input', text);
+    }).catch(() => {});
+    return false;
+  }
+
+  return true;
+});
+
 // Fit terminal to container
 function resizeTerminal() {
   fitAddon.fit();

@@ -18,7 +18,8 @@ import {
   notification,
   Badge,
   Divider,
-  Select
+  Select,
+  theme
 } from 'antd'
 import {
   PlayCircleOutlined,
@@ -39,6 +40,7 @@ const { TextArea } = Input
 const { Option } = Select
 
 const CrawlerPage: React.FC = () => {
+  const { token } = theme.useToken()
   const [form] = Form.useForm()
   const [isStarted, setIsStarted] = useState(false)
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
@@ -124,6 +126,29 @@ const CrawlerPage: React.FC = () => {
     onError: (error: Error) => {
       notification.error({
         title: '爬虫启动失败',
+        description: error.message
+      })
+    }
+  })
+
+  // 下载会话目录 zip
+  const downloadZipMutation = useMutation({
+    mutationFn: (sessionId: string) => crawlerApi.downloadSessionZip(sessionId),
+    onSuccess: (blob, sessionId) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${sessionId}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      notification.success({
+        title: '会话打包下载成功'
+      })
+    },
+    onError: (error: Error) => {
+      notification.error({
+        title: '会话打包下载失败',
         description: error.message
       })
     }
@@ -307,8 +332,8 @@ const CrawlerPage: React.FC = () => {
             <Button
               type="text"
               icon={<DownloadOutlined />}
-              onClick={() => exportMutation.mutate({ sessionId: record.session_id, format: 'json' })}
-              loading={exportMutation.isPending}
+              onClick={() => downloadZipMutation.mutate(record.session_id)}
+              loading={downloadZipMutation.isPending}
             />
           )}
           <Popconfirm
@@ -455,15 +480,15 @@ const CrawlerPage: React.FC = () => {
           <div style={{ 
             height: 200, 
             overflowY: 'auto',
-            backgroundColor: '#fafafa',
-            border: '1px solid #d9d9d9',
+            backgroundColor: token.colorFillQuaternary,
+            border: `1px solid ${token.colorBorder}`,
             borderRadius: 4,
             padding: 8
           }}>
             {!selectedSession ? (
               <div style={{ 
                 textAlign: 'center', 
-                color: '#999', 
+                color: token.colorTextSecondary, 
                 lineHeight: '180px',
                 fontSize: 14 
               }}>
@@ -472,7 +497,7 @@ const CrawlerPage: React.FC = () => {
             ) : requestsLoading ? (
               <div style={{ 
                 textAlign: 'center', 
-                color: '#999', 
+                color: token.colorTextSecondary, 
                 lineHeight: '180px',
                 fontSize: 14 
               }}>
@@ -487,8 +512,8 @@ const CrawlerPage: React.FC = () => {
                       marginBottom: 4, 
                       fontSize: 12,
                       padding: '4px 8px',
-                      backgroundColor: '#fff',
-                      border: '1px solid #f0f0f0',
+                      backgroundColor: token.colorBgElevated,
+                      border: `1px solid ${token.colorBorderSecondary}`,
                       borderRadius: 2,
                       display: 'flex',
                       alignItems: 'center',
@@ -543,11 +568,11 @@ const CrawlerPage: React.FC = () => {
             ) : (
               <div style={{ 
                 textAlign: 'center', 
-                color: '#999', 
+                color: token.colorTextSecondary, 
                 lineHeight: '180px',
                 fontSize: 14 
               }}>
-                等待网络请求...
+                暂无网络活动
               </div>
             )}
           </div>

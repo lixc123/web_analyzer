@@ -33,6 +33,10 @@ const queryClient = new QueryClient({
 const ThemedApp: React.FC = () => {
   const { theme: currentTheme } = useGlobalStore()
 
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', currentTheme)
+  }, [currentTheme])
+
   // 动态主题配置
   const themeConfig = {
     algorithm: currentTheme === 'dark' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
