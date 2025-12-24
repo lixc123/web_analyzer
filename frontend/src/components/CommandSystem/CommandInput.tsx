@@ -415,7 +415,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
           borderRadius: 4 
         }}>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            💡 使用 Tab 键快速补全命令，Enter 发送，Shift+Enter 换行
+            提示: 使用 Tab 键快速补全命令，Enter 发送，Shift+Enter 换行
           </Text>
         </div>
       )}

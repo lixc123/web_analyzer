@@ -61,14 +61,14 @@ class ThreadSafePageWrapper:
         def _goto_in_thread():
             # 在Playwright线程中运行异步导航
             async def _goto():
-                print(f"🔄 线程安全导航到: {url}")
+                print(f"[INFO] 线程安全导航到: {url}")
                 kwargs = {}
                 if wait_until is not None:
                     kwargs["wait_until"] = wait_until
                 if timeout is not None:
                     kwargs["timeout"] = timeout
                 result = await self.async_page.goto(url, **kwargs)
-                print(f"✅ 线程安全导航完成: {url}")
+                print(f"[OK] 线程安全导航完成: {url}")
                 return result
             
             # 在现有事件循环中运行
@@ -179,10 +179,10 @@ class BrowserManager:
             await self.close()
 
         # Windows和其他系统统一使用异步Playwright
-        print("🔄 启动异步Playwright (支持所有平台)...")
+        print("[INFO] 启动异步Playwright (支持所有平台)...")
         
         if sys.platform == 'win32':
-            print("🔧 Windows系统 - 使用应用级ProactorEventLoop")
+            print("[INFO] Windows系统 - 使用应用级ProactorEventLoop")
         
         if async_playwright is None:
             raise RuntimeError("playwright is not available.")
@@ -193,13 +193,13 @@ class BrowserManager:
                 raise RuntimeError("playwright is not available.")
                 
             pw = await async_playwright().start()
-            print("✅ Playwright实例已启动")
+            print("[OK] Playwright实例已启动")
             
             browser = await pw.chromium.launch(
                 headless=headless,
                 args=['--no-sandbox', '--disable-web-security'] if sys.platform != 'win32' else []
             )
-            print("✅ Chromium浏览器已启动")
+            print("[OK] Chromium浏览器已启动")
             
             context_options = {"viewport": {"width": 1280, "height": 720}}
             if user_agent:
@@ -207,38 +207,38 @@ class BrowserManager:
                 
             context = await browser.new_context(**context_options)
             context.set_default_timeout(timeout * 1000)
-            print("✅ 浏览器上下文已创建")
+            print("[OK] 浏览器上下文已创建")
 
             try:
                 await context.add_init_script(JS_HOOK_SCRIPT)
             except Exception as e:
-                print(f"⚠️ JS Hook注入失败: {e}")
+                print(f"[WARN] JS Hook注入失败: {e}")
             
             page = await context.new_page()
-            print("✅ 新页面已创建")
+            print("[OK] 新页面已创建")
             
             try:
                 await page.add_init_script(JS_HOOK_SCRIPT)
-                print("✅ JS Hook脚本已注入")
+                print("[OK] JS Hook脚本已注入")
             except Exception as e:
-                print(f"⚠️ JS Hook注入失败: {e}")
+                print(f"[WARN] JS Hook注入失败: {e}")
                 
             self._playwright = pw
             self._browser = browser
             self._page = page
             
-            print("✅ 统一异步Playwright启动完成")
+            print("[OK] 统一异步Playwright启动完成")
             return context
             
         except Exception as e:
-            print(f"❌ Playwright启动失败: {e}")
+            print(f"[FAIL] Playwright启动失败: {e}")
             raise RuntimeError(f"Playwright启动失败: {e}")
 
     async def take_screenshot(self, reason: str = "general", full_page: bool = True) -> Optional[str]:
         """截取页面截图"""
         try:
             if not self._page:
-                print("❌ 截图失败: 页面未初始化")
+                print("[FAIL] 截图失败: 页面未初始化")
                 return None
             
             # 生成截图文件名
@@ -268,14 +268,14 @@ class BrowserManager:
                     type="png"
                 )
             else:
-                print(f"❌ 截图失败: 未知页面类型 {type(self._page)}")
+                print(f"[FAIL] 截图失败: 未知页面类型 {type(self._page)}")
                 return None
             
-            print(f"✅ 截图已保存: {screenshot_path} (原因: {reason})")
+            print(f"[OK] 截图已保存: {screenshot_path} (原因: {reason})")
             return str(screenshot_path)
             
         except Exception as e:
-            print(f"❌ 截图失败 ({reason}): {e}")
+            print(f"[FAIL] 截图失败 ({reason}): {e}")
             return None
 
     def set_screenshot_directory(self, directory: str) -> None:
@@ -283,15 +283,15 @@ class BrowserManager:
         try:
             self._screenshot_dir = Path(directory)
             self._screenshot_dir.mkdir(parents=True, exist_ok=True)
-            print(f"✅ 截图目录已设置: {self._screenshot_dir}")
+            print(f"[OK] 截图目录已设置: {self._screenshot_dir}")
         except Exception as e:
-            print(f"❌ 设置截图目录失败: {e}")
+            print(f"[FAIL] 设置截图目录失败: {e}")
 
     async def take_element_screenshot(self, selector: str, reason: str = "element") -> Optional[str]:
         """截取特定元素的截图"""
         try:
             if not self._page:
-                print("❌ 元素截图失败: 页面未初始化")
+                print("[FAIL] 元素截图失败: 页面未初始化")
                 return None
             
             # 生成截图文件名
@@ -311,14 +311,14 @@ class BrowserManager:
                 element = self._page.locator(selector)
                 await element.screenshot(path=str(screenshot_path))
             else:
-                print(f"❌ 元素截图失败: 页面不支持元素定位")
+                print("[FAIL] 元素截图失败: 页面不支持元素定位")
                 return None
             
-            print(f"✅ 元素截图已保存: {screenshot_path} (选择器: {selector})")
+            print(f"[OK] 元素截图已保存: {screenshot_path} (选择器: {selector})")
             return str(screenshot_path)
             
         except Exception as e:
-            print(f"❌ 元素截图失败 ({selector}): {e}")
+            print(f"[FAIL] 元素截图失败 ({selector}): {e}")
             return None
 
     def get_page_info(self) -> dict:

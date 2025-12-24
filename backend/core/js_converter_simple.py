@@ -20,7 +20,7 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
     js_analysis_code = '''
     def analyze_javascript_contexts(self):
         """分析JavaScript调用栈信息"""
-        print("🔍 JavaScript代码分析:")
+        print("[INFO] JavaScript代码分析:")
         
         call_stacks = ['''
     
@@ -37,7 +37,7 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
         
         for i, stack in enumerate(call_stacks):
             if stack:
-                print(f"  📋 调用栈 {i+1}:")
+                print(f"  [INFO] 调用栈 {i+1}:")
                 for line in stack.split('\\n')[:3]:  # 只显示前3行
                     if line.strip():
                         print(f"    → {line.strip()}")
@@ -46,7 +46,7 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
         scripts_dir = Path(r"''' + str(session_path / "scripts") + '''")
         if scripts_dir.exists():
             js_files = list(scripts_dir.glob("*.js"))
-            print(f"\\n📁 发现 {len(js_files)} 个JavaScript文件:")
+            print(f"\\n[INFO] 发现 {len(js_files)} 个JavaScript文件:")
             for js_file in js_files:
                 print(f"  - {js_file.name} ({js_file.stat().st_size} bytes)")
         

@@ -33,9 +33,9 @@ class NetworkRecorder:
         self._screenshot_enabled = self._config.get('capture_screenshots', False)
         
         if self._screenshot_enabled:
-            self._log("✅ 截图功能已启用")
+            self._log("[OK] 截图功能已启用")
         else:
-            self._log("📷 截图功能已禁用（用户未勾选）")
+            self._log("[INFO] 截图功能已禁用（用户未勾选）")
 
     @property
     def is_recording(self) -> bool:
@@ -67,7 +67,7 @@ class NetworkRecorder:
             self._listeners_attached = True
 
         self._is_recording = True
-        self._log("开始录制网络请求")
+        self._log("[INFO] 开始录制网络请求")
 
     async def stop(self) -> None:
         if not self._is_recording:
@@ -75,7 +75,7 @@ class NetworkRecorder:
 
         self._stopping = True
         self._is_recording = False
-        self._log(f"停止录制，共捕获 {len(self._records)} 条请求")
+        self._log(f"[INFO] 停止录制，共捕获 {len(self._records)} 条请求")
 
         if self._pending_response_tasks:
             loop = asyncio.get_running_loop()
@@ -85,7 +85,7 @@ class NetworkRecorder:
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     self._log(
-                        f"停止录制：仍有 {len(self._pending_response_tasks)} 个响应处理任务未完成，已超时"
+                        f"[WARNING] 停止录制：仍有 {len(self._pending_response_tasks)} 个响应处理任务未完成，已超时"
                     )
                     break
 
@@ -97,7 +97,7 @@ class NetworkRecorder:
                     )
                 except asyncio.TimeoutError:
                     self._log(
-                        f"停止录制：仍有 {len(self._pending_response_tasks)} 个响应处理任务未完成，已超时"
+                        f"[WARNING] 停止录制：仍有 {len(self._pending_response_tasks)} 个响应处理任务未完成，已超时"
                     )
                     break
         self._stopping = False
@@ -282,16 +282,16 @@ class NetworkRecorder:
 
     async def start_recording(self, browser_context, url: str):
         """开始录制 - 兼容同步和异步接口"""
-        print(f"🔄 开始设置录制，目标URL: {url}")
+        print(f"[INFO] 开始设置录制，目标URL: {url}")
         
         # 获取或创建页面
         if hasattr(browser_context, 'pages') and browser_context.pages:
             page = browser_context.pages[0]
-            print("✅ 使用现有页面")
+            print("[OK] 使用现有页面")
         else:
-            print("🔄 创建新页面...")
+            print("[INFO] 创建新页面...")
             page = await browser_context.new_page()
-            print("✅ 新页面已创建")
+            print("[OK] 新页面已创建")
 
         try:
             target_page = getattr(page, "async_page", page)
@@ -304,18 +304,18 @@ class NetworkRecorder:
         if hasattr(page, 'sync_page'):
             # 这是同步页面包装器
             self._browser_manager._page = page.sync_page
-            print("✅ 设置同步页面到browser_manager")
+            print("[OK] 设置同步页面到browser_manager")
         else:
             # 这是标准异步页面
             self._browser_manager._page = page
-            print("✅ 设置异步页面到browser_manager")
+            print("[OK] 设置异步页面到browser_manager")
 
-        print("🔄 开始网络录制...")
+        print("[INFO] 开始网络录制...")
         await self.start()
-        print("✅ 网络录制已启动")
+        print("[OK] 网络录制已启动")
 
         # 导航到目标URL - Windows下需要在原线程中执行
-        print(f"🔄 导航到目标URL: {url}")
+        print(f"[INFO] 导航到目标URL: {url}")
         
         import sys
         if sys.platform == 'win32' and hasattr(page, 'sync_page'):
@@ -325,8 +325,8 @@ class NetworkRecorder:
             # 标准异步页面
             await page.goto(url, wait_until="domcontentloaded")
             
-        print(f"✅ 已导航到: {url}")
-    
+        print(f"[OK] 已导航到: {url}")
+
     def _process_browser_data(self, console_text: str) -> None:
         """处理浏览器数据事件"""
         try:

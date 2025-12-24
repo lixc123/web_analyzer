@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from core.code_generator import generate_code_from_session
+from core.code_generator import generate_code_from_session, write_session_summary
 
 router = APIRouter()
 
@@ -74,6 +74,11 @@ async def generate_session_code(
         
         # 生成代码
         generated_code = generate_code_from_session(session_path)
+
+        try:
+            write_session_summary(session_path)
+        except Exception:
+            pass
         
         # 保存生成的代码
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -319,7 +324,7 @@ async def _generate_code_background(session_path: Path, session_name: str):
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(generated_code)
         
-        print(f"✅ 后台生成代码完成: {output_path}")
+        print(f"[OK] 后台生成代码完成: {output_path}")
         
     except Exception as e:
-        print(f"❌ 后台生成代码失败 {session_name}: {e}")
+        print(f"[FAIL] 后台生成代码失败 {session_name}: {e}")

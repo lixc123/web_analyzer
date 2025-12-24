@@ -92,7 +92,16 @@ class RecorderService:
 
         if q:
             q_lower = q.lower()
-            filtered = [r for r in filtered if q_lower in str(r.get("url", "")).lower()]
+            def _match(r: Dict) -> bool:
+                url = str(r.get("url", ""))
+                m = str(r.get("method", ""))
+                rt = str(r.get("resource_type", ""))
+                st = r.get("status") if r.get("status") is not None else r.get("status_code")
+                st_str = "" if st is None else str(st)
+                haystack = f"{url} {m} {rt} {st_str}".lower()
+                return q_lower in haystack
+
+            filtered = [r for r in filtered if _match(r)]
 
         if resource_type:
             filtered = [r for r in filtered if r.get("resource_type") == resource_type]
@@ -247,7 +256,7 @@ class RecorderService:
             self.active_sessions[session_id] = session
             self._ensure_realtime_task(session_id)
             
-            # 🟢 使用现有BrowserManager启动浏览器 - 直接调用async方法
+            # 使用现有BrowserManager启动浏览器 - 直接调用async方法
             config = session["config"]
             browser_context = await browser_manager.create_browser_context(
                 config.get("headless", True),
@@ -264,7 +273,7 @@ class RecorderService:
                 except Exception:
                     pass
             
-            # 🟢 使用现有NetworkRecorder开始录制 - 直接调用async方法
+            # 使用现有NetworkRecorder开始录制 - 直接调用async方法
             await recorder.start_recording(browser_context, session["url"])
             
             # 设置当前URL用于实时预览
@@ -299,7 +308,7 @@ class RecorderService:
         archiver = self.session_archivers.get(session_id)
         
         try:
-            # 🟢 使用现有NetworkRecorder停止录制 - 直接调用async方法
+            # 使用现有NetworkRecorder停止录制 - 直接调用async方法
             if recorder:
                 await recorder.stop()
 
@@ -414,7 +423,7 @@ class RecorderService:
             # 生成可执行 Python 回放代码
             if archiver is not None:
                 try:
-                    from core.code_generator import generate_code_from_session, generate_per_request_scripts
+                    from core.code_generator import generate_code_from_session, generate_per_request_scripts, write_session_summary
 
                     replay_code = generate_code_from_session(archiver.session_dir)
                     replay_path = archiver.session_dir / "replay_session.py"
@@ -425,10 +434,15 @@ class RecorderService:
                         generate_per_request_scripts(archiver.session_dir)
                     except Exception as e:
                         logger.warning(f"生成逐请求脚本失败 {session_id}: {e}")
+                    try:
+                        summary_path = write_session_summary(archiver.session_dir)
+                        logger.info(f"已生成会话总结: {summary_path}")
+                    except Exception as e:
+                        logger.warning(f"生成会话总结失败 {session_id}: {e}")
                 except Exception as e:
                     logger.warning(f"生成回放代码失败 {session_id}: {e}")
             
-            # 🟢 使用现有BrowserManager关闭浏览器 - 直接调用async方法
+            # 使用现有BrowserManager关闭浏览器 - 直接调用async方法
             if browser_manager:
                 await browser_manager.close()
 
@@ -458,7 +472,7 @@ class RecorderService:
         session = self.active_sessions[session_id]
         recorder = self.session_recorders.get(session_id)
         
-        # 🟢 获取现有NetworkRecorder的录制进度 - 使用可用的属性
+        # 获取现有NetworkRecorder的录制进度 - 使用可用的属性
         if recorder:
             try:
                 records = recorder.records
@@ -595,13 +609,13 @@ class RecorderService:
 
             return serialized_requests[offset:offset + limit]
 
-        # 🟢 优先从session级别存储读取数据
+        # 优先从session级别存储读取数据
+        session_requests_path = HybridStorage.get_session_requests_path(session_id)
         session_requests = HybridStorage.load_session_requests(session_id)
-        
-        if session_requests:
+        if os.path.exists(session_requests_path):
             return session_requests[offset:offset + limit]
         
-        # 🟢 向后兼容：如果session级别没有数据，尝试从全局requests.json读取
+        # 向后兼容：如果session级别没有数据，尝试从全局requests.json读取
         requests_file = HybridStorage.get_requests_json_path()
         
         if not os.path.exists(requests_file):
@@ -648,11 +662,11 @@ class RecorderService:
                 "limit": limit,
             }
 
-        # 🟢 优先从session级别存储读取数据
+        # 优先从session级别存储读取数据
+        session_requests_path = HybridStorage.get_session_requests_path(session_id)
         session_requests = HybridStorage.load_session_requests(session_id)
-        
-        if not session_requests:
-            # 🟢 向后兼容：如果session级别没有数据，尝试从全局requests.json读取
+        if not os.path.exists(session_requests_path):
+            # 向后兼容：如果session级别没有数据，尝试从全局requests.json读取
             requests_file = HybridStorage.get_requests_json_path()
             if os.path.exists(requests_file):
                 try:
@@ -693,13 +707,13 @@ class RecorderService:
         if session and recorder and session.get("status") in {"starting", "running"}:
             return [self._serialize_request_for_api(r, session_id) for r in recorder.records]
 
-        # 🟢 优先从session级别存储读取数据
+        # 优先从session级别存储读取数据
+        session_requests_path = HybridStorage.get_session_requests_path(session_id)
         session_requests = HybridStorage.load_session_requests(session_id)
-        
-        if session_requests:
+        if os.path.exists(session_requests_path):
             return session_requests
         
-        # 🟢 向后兼容：如果session级别没有数据，尝试从全局requests.json读取
+        # 向后兼容：如果session级别没有数据，尝试从全局requests.json读取
         requests_file = HybridStorage.get_requests_json_path()
         if not os.path.exists(requests_file):
             return []
@@ -716,6 +730,64 @@ class RecorderService:
         except Exception as e:
             logger.error(f"读取全部请求数据失败: {e}")
             return []
+
+    async def clear_session_requests(self, session_id: str) -> Dict[str, Any]:
+        cleared_count = 0
+
+        recorder = self.session_recorders.get(session_id)
+        if recorder is not None:
+            try:
+                cleared_count += len(recorder.records)
+                recorder.records.clear()
+                if hasattr(recorder, "_records_by_key") and isinstance(getattr(recorder, "_records_by_key"), dict):
+                    getattr(recorder, "_records_by_key").clear()
+                if hasattr(recorder, "_pending_response_tasks") and isinstance(getattr(recorder, "_pending_response_tasks"), set):
+                    getattr(recorder, "_pending_response_tasks").clear()
+            except Exception:
+                pass
+
+        self._realtime_sent_counts[session_id] = 0
+
+        session = self.active_sessions.get(session_id)
+        if session is not None:
+            session["total_requests"] = 0
+            session["completed_requests"] = 0
+            session["updated_at"] = datetime.now().isoformat()
+            self.active_sessions[session_id] = session
+
+        try:
+            session_requests_path = HybridStorage.get_session_requests_path(session_id)
+            if os.path.exists(session_requests_path):
+                existing = HybridStorage.load_session_requests(session_id)
+                cleared_count += len(existing)
+            HybridStorage.save_session_requests(session_id, [])
+        except Exception as e:
+            logger.warning(f"清空session级别requests失败 {session_id}: {e}")
+
+        try:
+            requests_file = HybridStorage.get_requests_json_path()
+            if os.path.exists(requests_file):
+                all_requests = HybridStorage.load_json_data(requests_file)
+                if all_requests:
+                    original_count = len(all_requests)
+                    filtered = [r for r in all_requests if r.get("session_id") != session_id]
+                    removed = original_count - len(filtered)
+                    if removed:
+                        cleared_count += removed
+                        HybridStorage.save_json_data(requests_file, filtered)
+        except Exception as e:
+            logger.warning(f"清空全局requests.json失败 {session_id}: {e}")
+
+        try:
+            await self.cache_service.invalidate_session_cache(session_id)
+        except Exception as e:
+            logger.warning(f"清理缓存失败 {session_id}: {e}")
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "cleared_count": cleared_count,
+        }
     
     async def delete_session(self, session_id: str):
         """删除会话"""
@@ -794,7 +866,7 @@ class RecorderService:
         elif format == "csv":
             return await self._export_to_csv(requests)
         elif format == "har":
-            # 🟢 使用现有HAR导出功能 (如果已实现)
+            # 使用现有HAR导出功能 (如果已实现)
             return await self._export_to_har(requests)
         else:
             raise ValueError(f"不支持的导出格式: {format}")
@@ -802,16 +874,13 @@ class RecorderService:
     async def _save_session_data(self, session_id: str):
         """保存会话数据到持久化存储"""
         recorder = self.session_recorders.get(session_id)
-        
+
         if not recorder:
             return
-        
+
         try:
-            # 🟢 获取现有NetworkRecorder的录制结果 - 使用records属性
             recorded_requests = recorder.records
-            
-            # 🟢 保存到session级别的requests.json文件
-            # 序列化请求记录（session_id在session级别存储中不再需要）
+
             serialized_requests = []
             for request in recorded_requests:
                 try:
@@ -822,87 +891,68 @@ class RecorderService:
                         request_dict = request.to_dict()
                         serialized_requests.append(request_dict)
                     elif hasattr(request, '__dict__'):
-                        # 处理对象类型，转换为字典
                         request_dict = {
                             key: value for key, value in request.__dict__.items()
                             if not key.startswith('_') and isinstance(value, (str, int, float, bool, list, dict, type(None)))
                         }
                         serialized_requests.append(request_dict)
                     else:
-                        # 跳过无法序列化的对象
                         logger.warning(f"跳过无法序列化的请求对象: {type(request)}")
                         continue
                 except Exception as e:
                     logger.warning(f"序列化请求失败，跳过: {e}")
                     continue
-            
-            # 覆盖保存到 session 级别 requests.json，避免重复追加导致同一会话数据膨胀
-            # 如需增量保存，应由调用方明确实现（目前 stop_recording 会保存最终结果）
+
             HybridStorage.save_session_requests(session_id, serialized_requests)
-            
-            # 保存会话元数据
+
             sessions_file = HybridStorage.get_sessions_json_path()
             HybridStorage.ensure_sessions_json_exists()
             sessions = HybridStorage.load_json_data(sessions_file)
-            
-            # 添加或更新当前会话
-            session_data = self.active_sessions[session_id].copy()
-            # 确保会话数据可以序列化
-            for key, value in session_data.items():
+
+            session_data = self.active_sessions.get(session_id, {}).copy()
+            for key, value in list(session_data.items()):
                 if not isinstance(value, (str, int, float, bool, list, dict, type(None))):
                     session_data[key] = str(value)
-            
+
             if not isinstance(sessions, list):
                 sessions = []
             sessions = [s for s in sessions if s.get("session_id") != session_id]
             sessions.append(session_data)
-            
+
             HybridStorage.save_json_data(sessions_file, sessions)
-            
+
             logger.info(f"会话数据已保存到session级别存储: {session_id}")
-            
+
         except Exception as e:
             logger.error(f"保存会话数据失败 {session_id}: {e}")
             raise
-    
+
     async def _export_to_csv(self, requests: List[Dict]) -> str:
         """导出为CSV格式"""
         import csv
         import io
-        
+
         output = io.StringIO()
-        
+
         if not requests:
             return ""
-        
-        # 获取所有字段名
+
         fieldnames = set()
         for req in requests:
             fieldnames.update(req.keys())
-        
+
         writer = csv.DictWriter(output, fieldnames=list(fieldnames))
         writer.writeheader()
         writer.writerows(requests)
-        
+
         return output.getvalue()
-    
+
     async def _export_to_har(self, requests: List[Dict]) -> Dict:
         """导出为HAR格式"""
-        # 🟢 使用现有har_exporter模块 (如果存在)
-        try:
-            from core.har_exporter import HarExporter
-            exporter = HarExporter()
-            return await asyncio.get_event_loop().run_in_executor(
-                None,
-                exporter.export_to_har,
-                requests
-            )
-        except ImportError:
-            # 如果HAR导出器不存在，返回基本格式
-            return {
-                "log": {
-                    "version": "1.2",
-                    "creator": {"name": "Web Analyzer V2", "version": "2.0.0"},
-                    "entries": requests
-                }
+        return {
+            "log": {
+                "version": "1.2",
+                "creator": {"name": "Web Analyzer V2", "version": "2.0.0"},
+                "entries": requests,
             }
+        }

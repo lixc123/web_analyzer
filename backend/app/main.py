@@ -19,20 +19,20 @@ if sys.platform == 'win32':
         print(f"发现现有循环类型: {current_loop_type}")
         
         if current_loop_type != 'ProactorEventLoop':
-            print("⚠️ 当前循环不是ProactorEventLoop，需要Uvicorn启动时使用正确策略")
+            print("WARNING: 当前循环不是ProactorEventLoop，需要Uvicorn启动时使用正确策略")
     except RuntimeError:
         # 没有运行的循环，这很好
-        print("✅ 没有运行中的事件循环，策略设置将生效")
+        print("OK: 没有运行中的事件循环，策略设置将生效")
     
     # 3. 创建并设置ProactorEventLoop为默认循环
     try:
         loop = asyncio.ProactorEventLoop()
         asyncio.set_event_loop(loop)
-        print("🔧 强制设置ProactorEventLoop为默认循环")
+        print("FIX: 强制设置ProactorEventLoop为默认循环")
     except Exception as e:
         print(f"设置默认循环失败: {e}")
     
-    print("✅ Windows Playwright修复已应用")
+    print("OK: Windows Playwright修复已应用")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,7 +97,7 @@ if os.path.exists("../frontend/dist"):
 @app.on_event("startup")
 async def startup_event():
     """应用启动事件"""
-    logger.info(f"🚀 启动 {settings.app_name}")
+    logger.info(f"启动 {settings.app_name}")
     
     # 初始化数据库
     init_database()
@@ -109,12 +109,12 @@ async def startup_event():
     from .services.cache_service import CacheService
     cache_service = CacheService()
     
-    logger.info(f"✅ 应用启动完成，监听端口: {settings.backend_port}")
+    logger.info(f"应用启动完成，监听端口: {settings.backend_port}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭事件"""
-    logger.info("🛑 正在关闭应用...")
+    logger.info("正在关闭应用...")
 
 @app.get("/")
 async def root():

@@ -337,11 +337,11 @@ async def get_help(command: Optional[str] = None):
                 "输入 /clear 清除会话历史"
             ],
             "features": [
-                "🔐 多种认证方式 (Qwen OAuth, OpenAI API)",
-                "🤖 智能模型切换 (编程/视觉模型自动切换)",
-                "📊 实时会话统计和Token管理",
-                "🛠️ 30+专业命令 (基于qwen-code CLI)",
-                "💾 会话记忆和历史压缩",
-                "🎨 现代化Web界面"
+                "多种认证方式 (Qwen OAuth, OpenAI API)",
+                "智能模型切换 (编程/视觉模型自动切换)",
+                "实时会话统计和Token管理",
+                "30+专业命令 (基于qwen-code CLI)",
+                "会话记忆和历史压缩",
+                "现代化Web界面"
             ]
         }

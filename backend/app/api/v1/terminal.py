@@ -57,8 +57,8 @@ async def get_crawler_sessions() -> List[Dict[str, Any]]:
     # 如果没有找到会话，添加一些默认目录
     if not sessions:
         default_dirs = [
-            (project_root, "🏠 项目根目录", "当前web_analyzer_v2项目"),
-            (Path.home() / "Desktop", "🖥️ 桌面目录", "用户桌面"),
+            (project_root, "项目根目录", "当前web_analyzer_v2项目"),
+            (Path.home() / "Desktop", "桌面目录", "用户桌面"),
         ]
         
         for dir_path, name, desc in default_dirs:
@@ -211,7 +211,7 @@ async def terminal_page() -> HTMLResponse:
             </div>
             
             <div id="error" class="error">
-                <div>❌ 无法连接到终端服务</div>
+                <div>无法连接到终端服务</div>
                 <div style="margin: 10px 0; font-size: 14px;">
                     请确保 Node.js 终端服务正在端口 3001 运行
                 </div>

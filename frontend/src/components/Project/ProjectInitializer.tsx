@@ -58,7 +58,7 @@ const PROJECT_TEMPLATES = {
     excludePatterns: ['*.log', 'node_modules/**', '__pycache__/**'],
     analysisDepth: 'detailed' as const,
     filePatterns: ['**/*.py', '**/*.js', '**/*.html', '**/*.css'],
-    icon: '🕷️'
+    icon: 'crawler'
   },
   'data-analysis': {
     name: '数据分析项目', 
@@ -68,7 +68,7 @@ const PROJECT_TEMPLATES = {
     excludePatterns: ['*.csv', '*.xlsx', 'data/**', 'temp/**'],
     analysisDepth: 'comprehensive' as const,
     filePatterns: ['**/*.py', '**/*.r', '**/*.sql', '**/*.ipynb'],
-    icon: '📊'
+    icon: 'analysis'
   },
   'reverse-engineering': {
     name: '逆向工程项目',
@@ -78,7 +78,7 @@ const PROJECT_TEMPLATES = {
     excludePatterns: ['*.exe', '*.dll', 'temp/**'],
     analysisDepth: 'comprehensive' as const,
     filePatterns: ['**/*.py', '**/*.c', '**/*.cpp', '**/*.asm'],
-    icon: '🔍'
+    icon: 'reverse'
   },
   'security-audit': {
     name: '安全审计项目',
@@ -88,7 +88,7 @@ const PROJECT_TEMPLATES = {
     excludePatterns: ['logs/**', '*.log', 'reports/**'],
     analysisDepth: 'detailed' as const,
     filePatterns: ['**/*.py', '**/*.sh', '**/*.ps1', '**/*.yml'],
-    icon: '🔒'
+    icon: 'security'
   },
   'general': {
     name: '通用项目',
@@ -98,7 +98,7 @@ const PROJECT_TEMPLATES = {
     excludePatterns: ['node_modules/**', '.git/**', '*.log'],
     analysisDepth: 'basic' as const,
     filePatterns: ['**/*'],
-    icon: '💻'
+    icon: 'general'
   }
 };
 
@@ -333,7 +333,7 @@ export const ProjectInitializer: React.FC<ProjectInitializerProps> = ({
               {availableAgents.map(agent => (
                 <Option key={agent.id} value={agent.id}>
                   <Space>
-                    <span>{agent.avatar || '🤖'}</span>
+                    <span>{agent.avatar || 'AI'}</span>
                     <span>{agent.name}</span>
                     <Tag>{agent.specialty}</Tag>
                   </Space>
@@ -375,9 +375,9 @@ export const ProjectInitializer: React.FC<ProjectInitializerProps> = ({
               <Col span={8} key={tool.id}>
                 <Checkbox value={tool.id}>
                   <Space>
-                    <span>{tool.category === 'file' ? '📁' : 
-                          tool.category === 'database' ? '🗄️' :
-                          tool.category === 'automation' ? '🤖' : '🔧'}</span>
+                    <span>{tool.category === 'file' ? 'FILE' : 
+                          tool.category === 'database' ? 'DB' :
+                          tool.category === 'automation' ? 'AUTO' : 'TOOL'}</span>
                     <span>{tool.name}</span>
                   </Space>
                 </Checkbox>

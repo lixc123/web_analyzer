@@ -278,10 +278,10 @@ echo.
 echo ========================================
 echo          启动完成总结
 echo ========================================
-echo ✓ 后端服务已启动 (FastAPI + Uvicorn)
-echo ✓ 前端服务已启动 (Vite开发服务器)
-echo ✓ Node.js终端服务已启动 (Qwen助手集成)
-echo ✓ 浏览器已自动打开应用
+echo [OK] 后端服务已启动 (FastAPI + Uvicorn)
+echo [OK] 前端服务已启动 (Vite开发服务器)
+echo [OK] Node.js终端服务已启动 (Qwen助手集成)
+echo [OK] 浏览器已自动打开应用
 echo.
 echo Service management:
 echo - Stop services: stop_services.bat

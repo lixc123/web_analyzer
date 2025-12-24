@@ -49,7 +49,7 @@ const CrawlerPage: React.FC = () => {
   const [currentUrl, setCurrentUrl] = useState<string>('')
   const [realtimeRequests, setRealtimeRequests] = useState<any[]>([])
   const [requestsPage, setRequestsPage] = useState<number>(1)
-  const [requestsPageSize, setRequestsPageSize] = useState<number>(20)
+  const [requestsPageSize, setRequestsPageSize] = useState<number>(30)
   const [requestFilters, setRequestFilters] = useState<{
     q?: string
     resource_type?: string
@@ -126,6 +126,27 @@ const CrawlerPage: React.FC = () => {
     onError: (error: Error) => {
       notification.error({
         title: '爬虫启动失败',
+        description: error.message
+      })
+    }
+  })
+
+  // 清空会话请求
+  const clearRequestsMutation = useMutation({
+    mutationFn: (sessionId: string) => crawlerApi.clearSessionRequests(sessionId),
+    onSuccess: (_data, sessionId) => {
+      setRealtimeRequests([])
+      setRequestsPage(1)
+      queryClient.invalidateQueries({ queryKey: ['crawler-sessions'] })
+      queryClient.invalidateQueries({ queryKey: ['session-requests', sessionId] })
+      queryClient.refetchQueries({ queryKey: ['session-requests', sessionId] })
+      notification.success({
+        title: '已清空会话请求'
+      })
+    },
+    onError: (error: Error) => {
+      notification.error({
+        title: '清空会话请求失败',
         description: error.message
       })
     }
@@ -432,9 +453,9 @@ const CrawlerPage: React.FC = () => {
         <Card 
           title={
             <Space>
-              <span>🌐 网络控制台</span>
+              <span>网络控制台</span>
               <Badge 
-                count={requestsData?.requests?.length || 0} 
+                count={requestsData?.total || 0} 
                 showZero 
                 style={{ backgroundColor: '#52c41a' }}
               />
@@ -452,13 +473,49 @@ const CrawlerPage: React.FC = () => {
           size="small"
           extra={
             <Space size="small">
+              <Input
+                size="small"
+                placeholder="搜索 URL/方法/状态码"
+                style={{ width: 200 }}
+                allowClear
+                value={requestFilters.q || ''}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setRequestsPage(1)
+                  setRequestFilters(prev => ({ ...prev, q: value || undefined }))
+                }}
+                disabled={!selectedSession}
+              />
+              <Button
+                size="small"
+                onClick={() => setRequestsPage(prev => Math.max(1, prev - 1))}
+                disabled={!selectedSession || requestsPage <= 1}
+              >
+                上一页
+              </Button>
+              <Button
+                size="small"
+                onClick={() => {
+                  const total = requestsData?.total || 0
+                  const maxPage = Math.max(1, Math.ceil(total / requestsPageSize))
+                  setRequestsPage(prev => Math.min(maxPage, prev + 1))
+                }}
+                disabled={!selectedSession || ((requestsData?.total || 0) <= requestsPage * requestsPageSize)}
+              >
+                下一页
+              </Button>
               <Button 
                 size="small" 
                 icon={<ClearOutlined />}
                 onClick={() => {
-                  // 清空控制台逻辑
-                  setRealtimeRequests([])
+                  if (!selectedSession) {
+                    setRealtimeRequests([])
+                    return
+                  }
+                  clearRequestsMutation.mutate(selectedSession)
                 }}
+                loading={clearRequestsMutation.isPending}
+                disabled={!selectedSession}
               >
                 清空
               </Button>
@@ -503,9 +560,9 @@ const CrawlerPage: React.FC = () => {
               }}>
                 加载中...
               </div>
-            ) : (realtimeRequests.length > 0 || (requestsData?.requests && requestsData.requests.length > 0)) ? (
+            ) : (requestsData?.requests && requestsData.requests.length > 0) ? (
               <div>
-                {(realtimeRequests.length > 0 ? realtimeRequests : (requestsData?.requests || [])).slice(-10).map((req, index) => (
+                {(requestsData?.requests || []).map((req, index) => (
                   <div 
                     key={`${req.id || req.timestamp || Date.now()}-${index}-${Math.random()}`} 
                     style={{ 
@@ -678,6 +735,7 @@ const CrawlerPage: React.FC = () => {
               placeholder="搜索URL"
               style={{ width: 180 }}
               allowClear
+              value={requestFilters.q || ''}
               onChange={(e) => {
                 const value = e.target.value
                 setRequestsPage(1)

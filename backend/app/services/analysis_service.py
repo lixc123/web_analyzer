@@ -128,7 +128,7 @@ class AnalysisService:
     
     def __init__(self):
         self.cache_service = get_cache_service()
-        # 🟢 直接使用现有RequestAnalyzer类 (零修改)
+        # 直接使用现有RequestAnalyzer类 (零修改)
         self.analyzer = RequestAnalyzer()
         
         # 分析结果存储
@@ -174,7 +174,7 @@ class AnalysisService:
             if not requests:
                 raise ValueError("没有可分析的请求数据")
             
-            # 🟢 将请求数据转换为RequestRecord对象 (使用现有模型)
+            # 将请求数据转换为RequestRecord对象 (使用现有模型)
             request_records = []
             for req_data in requests:
                 if isinstance(req_data, dict):
@@ -189,7 +189,7 @@ class AnalysisService:
             suspicious_requests = []
             
             if analysis_type in ["all", "entropy"]:
-                # 🟢 使用现有熵值分析算法 (零修改)
+                # 使用现有熵值分析算法 (零修改)
                 entropy_results = await asyncio.get_event_loop().run_in_executor(
                     None,
                     self.analyzer.analyze_entropy,
@@ -200,7 +200,7 @@ class AnalysisService:
                 suspicious_requests.extend(entropy_results.get("high_entropy_requests", []))
             
             if analysis_type in ["all", "sensitive_params"]:
-                # 🟢 使用现有敏感参数检测 (零修改)
+                # 使用现有敏感参数检测 (零修改)
                 sensitive_results = await asyncio.get_event_loop().run_in_executor(
                     None,
                     self.analyzer.detect_sensitive_parameters,
@@ -211,7 +211,7 @@ class AnalysisService:
                 suspicious_requests.extend(sensitive_results.get("suspicious_requests", []))
             
             if analysis_type in ["all", "encryption_keywords"]:
-                # 🟢 使用现有加密关键词识别 (零修改)
+                # 使用现有加密关键词识别 (零修改)
                 encryption_results = await asyncio.get_event_loop().run_in_executor(
                     None,
                     self.analyzer.identify_encryption_keywords,
@@ -266,7 +266,7 @@ class AnalysisService:
         requests = await self._load_session_requests(session_id)
         request_records = [RequestRecord.from_dict(req) for req in requests]
         
-        # 🟢 使用现有熵值分析算法 (零修改)
+        # 使用现有熵值分析算法 (零修改)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
             self.analyzer.analyze_entropy,
@@ -281,7 +281,7 @@ class AnalysisService:
         requests = await self._load_session_requests(session_id)
         request_records = [RequestRecord.from_dict(req) for req in requests]
         
-        # 🟢 使用现有敏感参数检测 (零修改)
+        # 使用现有敏感参数检测 (零修改)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
             self.analyzer.detect_sensitive_parameters,
@@ -296,7 +296,7 @@ class AnalysisService:
         requests = await self._load_session_requests(session_id)
         request_records = [RequestRecord.from_dict(req) for req in requests]
         
-        # 🟢 使用现有加密关键词识别 (零修改)
+        # 使用现有加密关键词识别 (零修改)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
             self.analyzer.identify_encryption_keywords,
@@ -465,14 +465,14 @@ class AnalysisService:
     async def _load_session_requests(self, session_id: str) -> List[Dict]:
         """从存储中加载会话请求数据"""
         try:
-            # 🟢 优先从session级别存储加载
+            # 优先从session级别存储加载
             session_requests = HybridStorage.load_session_requests(session_id)
             
             if session_requests:
                 logger.info(f"从session级别存储加载了 {len(session_requests)} 个请求")
                 return session_requests
             
-            # 🟢 向后兼容：如果session级别没有数据，尝试从全局requests.json加载
+            # 向后兼容：如果session级别没有数据，尝试从全局requests.json加载
             requests_file = HybridStorage.get_requests_json_path()
             if not os.path.exists(requests_file):
                 logger.warning(f"会话 {session_id} 没有找到任何请求数据")

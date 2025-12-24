@@ -38,7 +38,7 @@ app.get('/health', (req, res) => {
 
 // Handle socket connections
 io.on('connection', (socket) => {
-  console.log('🔗 Terminal client connected:', socket.id);
+  console.log('[INFO] Terminal client connected:', socket.id);
 
   // Determine the shell based on platform - use cmd on Windows to avoid ExecutionPolicy issues
   const shell = os.platform() === 'win32' ? 'cmd.exe' : 'bash';
@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
 
   // Handle terminal exit
   ptyProcess.onExit(({ exitCode, signal }) => {
-    console.log(`🔚 Terminal session ended: ${socket.id} (code: ${exitCode})`);
+    console.log(`[INFO] Terminal session ended: ${socket.id} (code: ${exitCode})`);
     socket.emit('exit', { exitCode, signal });
   });
 
@@ -92,7 +92,7 @@ io.on('connection', (socket) => {
 
   // Handle session switching
   socket.on('switch-session', (sessionPath) => {
-    console.log('🔄 Switching to session:', sessionPath);
+    console.log('[INFO] Switching to session:', sessionPath);
     
     // Send Ctrl+C to cancel any running process
     ptyProcess.write('\x03');
@@ -110,7 +110,7 @@ io.on('connection', (socket) => {
         ptyProcess.write(`${clearCmd}\r`);
         setTimeout(() => {
           ptyProcess.write('qwen\r');
-          console.log('🚀 Qwen started in session:', sessionPath);
+          console.log('[INFO] Qwen started in session:', sessionPath);
         }, 120);
       }, 350);
     }, 600);

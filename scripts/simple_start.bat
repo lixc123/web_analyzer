@@ -121,10 +121,10 @@ echo.
 echo ========================================
 echo          启动完成总结
 echo ========================================
-echo [✓] Backend service started (FastAPI + Uvicorn)
-echo [✓] Frontend service started (Vite dev server)
-echo [✓] Node.js Terminal service started (Qwen integration)
-echo [✓] Browser opened automatically
+echo [OK] Backend service started (FastAPI + Uvicorn)
+echo [OK] Frontend service started (Vite dev server)
+echo [OK] Node.js Terminal service started (Qwen integration)
+echo [OK] Browser opened automatically
 echo.
 echo Service Management:
 echo - Stop services: Close each service terminal window

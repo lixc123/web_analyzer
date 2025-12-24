@@ -27,7 +27,6 @@ import {
   FullscreenExitOutlined
 } from '@ant-design/icons'
 import { useGlobalStore, useWebSocketStatus, useSystemStatus } from '@store/GlobalStore'
-import LoginModal from '@components/Auth/LoginModal'
 import { useAuth } from '@components/Auth/AuthProvider'
 
 const { Header, Sider, Content } = Layout
@@ -37,7 +36,6 @@ const MainLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [fullscreen, setFullscreen] = useState(false)
-  const [showLoginModal, setShowLoginModal] = useState(false)
 
   const { isAuthenticated, user, logout } = useAuth()
   
@@ -89,17 +87,6 @@ const MainLayout: React.FC = () => {
 
   // 用户菜单
   const userMenuItems = [
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: '个人资料',
-    },
-    {
-      key: 'auth',
-      icon: <UserOutlined />,
-      label: isAuthenticated ? '认证/切换登录' : '登录',
-      onClick: () => setShowLoginModal(true)
-    },
     {
       key: 'theme',
       icon: <SettingOutlined />,
@@ -337,11 +324,6 @@ const MainLayout: React.FC = () => {
           <Outlet />
         </Content>
       </Layout>
-
-      <LoginModal
-        visible={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-      />
     </Layout>
   )
 }

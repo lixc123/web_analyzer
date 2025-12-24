@@ -319,14 +319,14 @@ export const MCPManager: React.FC = () => {
   // 渲染工具类别图标
   const renderToolIcon = (category: MCPTool['category']) => {
     const icons = {
-      file: '📁',
-      database: '🗄️', 
-      api: '🌐',
-      analysis: '📊',
-      automation: '🤖',
-      other: '🔧'
+      file: 'FILE',
+      database: 'DB',
+      api: 'API',
+      analysis: 'ANALYSIS',
+      automation: 'AUTO',
+      other: 'TOOL'
     };
-    return icons[category] || '🔧';
+    return icons[category] || 'TOOL';
   };
 
   // 服务器表格列配置

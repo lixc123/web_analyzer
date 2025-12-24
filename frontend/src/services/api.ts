@@ -190,6 +190,12 @@ export const crawlerApi = {
     return response.data
   },
 
+  // 清空会话请求
+  clearSessionRequests: async (sessionId: string): Promise<{ success: boolean; session_id: string; cleared_count: number }> => {
+    const response = await apiClient.delete(`/crawler/requests/${sessionId}`)
+    return response.data
+  },
+
   // 删除会话
   deleteSession: async (sessionId: string): Promise<void> => {
     await apiClient.delete(`/crawler/session/${sessionId}`)

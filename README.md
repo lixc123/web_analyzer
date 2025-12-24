@@ -6,13 +6,13 @@ Modern web application for network traffic analysis and AI-powered insights.
 
 Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 + FastAPI + AI 智能分析技术栈构建。本项目将原有的 PySide6 桌面应用重构为 Web 应用，提供更好的用户体验和扩展性。
 
-## ✅ 重构完成状态
+## 重构完成状态
 
 **项目重构已全面完成！** 所有核心功能已实现并可投入生产使用。
 
-### 📋 完成清单
+### 完成清单
 
-#### ✅ 高优先级任务 (已完成)
+#### 高优先级任务 (已完成)
 - [x] 创建项目目录结构 (backend, frontend, qwen-code, scripts)
 - [x] 复制现有业务逻辑模块到后端 (零修改复用)
 - [x] 创建环境配置文件 (.env.example, .gitignore)
@@ -23,7 +23,7 @@ Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 
 - [x] 创建依赖管理文件 (requirements.txt, package.json)
 - [x] 设置Qwen-Code HTTP包装器 (Express服务器 端口3001)
 
-#### ✅ 中等优先级任务 (已完成)
+#### 中等优先级任务 (已完成)
 - [x] 初始化React 19 + TypeScript项目 (Vite + Ant Design 6.1.1)
 - [x] 创建React布局组件和路由结构
 - [x] 实现核心前端组件 (爬虫管理和数据分析)
@@ -33,11 +33,11 @@ Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 
 - [x] 创建API服务和Hooks (前端数据获取)
 - [x] 创建完整的React页面组件 (Home, Crawler, Analysis, AI, Settings)
 
-#### ✅ 低优先级任务 (已完成)
+#### 低优先级任务 (已完成)
 - [x] 创建综合项目文档和部署指南
 - [x] 更新README (最终架构和功能清单)
 
-## 🏗️ 技术栈
+## 技术栈
 
 ### 前端
 - **React 19.2.3** - 现代化UI框架 

@@ -98,7 +98,7 @@ const QwenTerminal: React.FC<QwenTerminalProps> = () => {
     
     websocket.current.onopen = () => {
       setIsConnected(true);
-      terminal.current?.writeln('\r\n\x1b[32m✓ 已连接到 Qwen CLI\x1b[0m\r\n');
+      terminal.current?.writeln('\r\n\x1b[32m[OK] 已连接到 Qwen CLI\x1b[0m\r\n');
     };
     
     websocket.current.onmessage = (event) => {
@@ -110,9 +110,9 @@ const QwenTerminal: React.FC<QwenTerminalProps> = () => {
         } else if (data.type === 'error') {
           terminal.current?.writeln(`\r\n\x1b[31m错误: ${data.message}\x1b[0m\r\n`);
         } else if (data.type === 'connected') {
-          terminal.current?.writeln(`\r\n\x1b[32m✓ CLI 已启动 (${data.cli_path})\x1b[0m\r\n`);
+          terminal.current?.writeln(`\r\n\x1b[32m[SUCCESS] CLI 已启动 (${data.cli_path})\x1b[0m\r\n`);
         } else if (data.type === 'disconnected') {
-          terminal.current?.writeln(`\r\n\x1b[33m✗ ${data.message}\x1b[0m\r\n`);
+          terminal.current?.writeln(`\r\n\x1b[33m[WARNING] ${data.message}\x1b[0m\r\n`);
         }
       } catch (error) {
         // 如果不是 JSON，直接显示
@@ -122,12 +122,12 @@ const QwenTerminal: React.FC<QwenTerminalProps> = () => {
     
     websocket.current.onerror = (error) => {
       console.error('WebSocket 错误:', error);
-      terminal.current?.writeln('\r\n\x1b[31m✗ 连接失败\x1b[0m\r\n');
+      terminal.current?.writeln('\r\n\x1b[31m[FAIL] 连接失败\x1b[0m\r\n');
     };
     
     websocket.current.onclose = () => {
       setIsConnected(false);
-      terminal.current?.writeln('\r\n\x1b[33m✗ 连接已断开\x1b[0m\r\n');
+      terminal.current?.writeln('\r\n\x1b[33m[WARN] 连接已断开\x1b[0m\r\n');
     };
   };
 

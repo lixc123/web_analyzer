@@ -17,13 +17,13 @@ def test_backend_api():
         # 测试健康检查
         response = requests.get("http://localhost:8000/health", timeout=5)
         if response.status_code == 200:
-            print("✅ 后端服务正常运行")
+            print("[OK] 后端服务正常运行")
             return True
         else:
-            print(f"❌ 后端健康检查失败: {response.status_code}")
+            print(f"[FAIL] 后端健康检查失败: {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ 无法连接到后端服务: {e}")
+        print(f"[FAIL] 无法连接到后端服务: {e}")
         return False
 
 def test_terminal_sessions_api():
@@ -32,17 +32,17 @@ def test_terminal_sessions_api():
         response = requests.get("http://localhost:8000/api/v1/terminal/sessions", timeout=10)
         if response.status_code == 200:
             sessions = response.json()
-            print(f"✅ Terminal会话API正常，发现 {len(sessions)} 个会话:")
+            print(f"[OK] Terminal会话API正常，发现 {len(sessions)} 个会话:")
             for session in sessions[:3]:  # 只显示前3个
                 print(f"  - {session['name']} ({session['type']})")
             if len(sessions) > 3:
                 print(f"  ... 还有 {len(sessions) - 3} 个会话")
             return True
         else:
-            print(f"❌ Terminal会话API失败: {response.status_code}")
+            print(f"[FAIL] Terminal会话API失败: {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ 无法连接到Terminal会话API: {e}")
+        print(f"[FAIL] 无法连接到Terminal会话API: {e}")
         return False
 
 def test_terminal_service():
@@ -50,13 +50,13 @@ def test_terminal_service():
     try:
         response = requests.get("http://localhost:3001/health", timeout=5)
         if response.status_code == 200:
-            print("✅ Node.js终端服务正常运行")
+            print("[OK] Node.js终端服务正常运行")
             return True
         else:
-            print(f"❌ Node.js终端服务健康检查失败: {response.status_code}")
+            print(f"[FAIL] Node.js终端服务健康检查失败: {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ 无法连接到Node.js终端服务: {e}")
+        print(f"[FAIL] 无法连接到Node.js终端服务: {e}")
         print("   请确保运行了启动脚本或手动启动了终端服务")
         return False
 
@@ -65,21 +65,21 @@ def test_frontend_access():
     try:
         response = requests.get("http://localhost:3000", timeout=5)  # 前端通常在3000端口
         if response.status_code == 200:
-            print("✅ 前端服务可访问")
+            print("[OK] 前端服务可访问")
             return True
         else:
-            print(f"❌ 前端服务访问失败: {response.status_code}")
+            print(f"[FAIL] 前端服务访问失败: {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
         # 前端可能在5173端口(Vite dev server)
         try:
             response = requests.get("http://localhost:5173", timeout=5)
             if response.status_code == 200:
-                print("✅ 前端服务可访问 (Vite开发服务器)")
+                print("[OK] 前端服务可访问 (Vite开发服务器)")
                 return True
         except:
             pass
-        print(f"❌ 无法连接到前端服务: {e}")
+        print(f"[FAIL] 无法连接到前端服务: {e}")
         return False
 
 def check_project_structure():
@@ -101,10 +101,10 @@ def check_project_structure():
             missing_files.append(file_path)
     
     if not missing_files:
-        print("✅ 项目结构完整")
+        print("[OK] 项目结构完整")
         return True
     else:
-        print("❌ 缺少以下文件:")
+        print("[FAIL] 缺少以下文件:")
         for file_path in missing_files:
             print(f"   - {file_path}")
         return False
@@ -152,7 +152,7 @@ def main():
     print()
     
     if passed_tests == total_tests:
-        print("🎉 所有测试通过！Terminal功能集成成功！")
+        print("[OK] 所有测试通过！Terminal功能集成成功！")
         print()
         print("使用指南:")
         print("1. 运行 scripts/setup_and_start.bat 或 scripts/simple_start.bat")
@@ -162,14 +162,14 @@ def main():
         print("5. 在终端中可以使用qwen命令")
         
     elif passed_tests >= 3:
-        print("⚠️ 部分功能可用，但存在一些问题需要解决")
+        print("[WARN] 部分功能可用，但存在一些问题需要解决")
         if not terminal_service_ok:
             print("- 需要启动Node.js终端服务")
         if not frontend_ok:
             print("- 需要启动前端服务")
             
     else:
-        print("❌ 多个关键服务未运行，请先启动所需服务")
+        print("[FAIL] 多个关键服务未运行，请先启动所需服务")
         print("运行: scripts/setup_and_start.bat")
     
     print()

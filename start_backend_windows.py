@@ -16,17 +16,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 if sys.platform == 'win32':
     # 设置Windows ProactorEventLoop策略来解决Playwright异步子进程问题
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    print("✅ Windows ProactorEventLoop策略已设置")
+    print("[OK] Windows ProactorEventLoop策略已设置")
 
 # 从backend/app导入应用
 from backend.app.main import app
 from backend.app.config import settings
 
 if __name__ == "__main__":
-    print(f"🚀 启动Web Analyzer后端服务")
-    print(f"📍 端口: {settings.backend_port}")
-    print(f"🔧 Windows优化: ProactorEventLoop")
-    print(f"📝 API文档: http://localhost:{settings.backend_port}/docs")
+    print(f"[INFO] 启动Web Analyzer后端服务")
+    print(f"[INFO] 端口: {settings.backend_port}")
+    print(f"[INFO] Windows优化: ProactorEventLoop")
+    print(f"[INFO] API文档: http://localhost:{settings.backend_port}/docs")
     
     # 使用uvicorn启动，确保使用Windows兼容配置
     uvicorn.run(

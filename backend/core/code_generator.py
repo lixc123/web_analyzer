@@ -7,6 +7,8 @@ HTTP请求到Python代码的转换器
 import json
 import hashlib
 import re
+from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import urlparse, parse_qs, unquote
@@ -109,7 +111,7 @@ Generated from Web Analyzer Session: {self.session_name}
             "                result = method()",
             "                self.results.append({'method': method_name, 'result': result, 'success': True})",
             "            except Exception as e:",
-            "                print(f'❌ {method_name} 执行失败: {e}')",
+            "                print(f'[FAIL] {method_name} 执行失败: {e}')",
             "                self.results.append({'method': method_name, 'error': str(e), 'success': False})",
             "        ",
             "        return self.results",
@@ -184,7 +186,7 @@ Generated from Web Analyzer Session: {self.session_name}
             f"        except:",
             f"            result['text'] = response.text[:500]  # 限制响应文本长度",
             f"        ",
-            f"        print(f'✅ {{result[\"method\"]}} {{result[\"url\"]}} -> {{result[\"status_code\"]}}')",
+            f"        print(f'[OK] {{result[\"method\"]}} {{result[\"url\"]}} -> {{result[\"status_code\"]}}')",
             f"        return result",
         ])
         
@@ -246,7 +248,7 @@ Generated from Web Analyzer Session: {self.session_name}
         """生成主函数"""
         return '''
 if __name__ == "__main__":
-    print("🚀 开始执行Web会话请求...")
+    print("[INFO] 开始执行Web会话请求...")
     
     # 创建会话实例
     session = WebSession()
@@ -258,7 +260,7 @@ if __name__ == "__main__":
     success_count = len([r for r in results if r.get('success')])
     total_count = len(results)
     
-    print(f"\n📊 执行完成:")
+    print(f"\n[STAT] 执行完成:")
     print(f"  - 总请求数: {total_count}")
     print(f"  - 成功: {success_count}")
     print(f"  - 失败: {total_count - success_count}")
@@ -267,7 +269,7 @@ if __name__ == "__main__":
     with open(f'session_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json', 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     
-    print("\n💾 结果已保存到 session_results_*.json")
+    print("\n[OK] 结果已保存到 session_results_*.json")
 '''
 
 
@@ -582,3 +584,257 @@ def generate_code_from_session(session_path: Path) -> str:
         
     except Exception as e:
         return f"# 读取请求记录时出错: {e}\nprint('Error reading requests: {e}')\n"
+
+
+def _format_bytes(value: int) -> str:
+    units = ["B", "KB", "MB", "GB"]
+    size = float(value)
+    idx = 0
+    while size >= 1024 and idx < len(units) - 1:
+        size /= 1024
+        idx += 1
+    if idx == 0:
+        return f"{int(size)} {units[idx]}"
+    return f"{size:.2f} {units[idx]}"
+
+
+def generate_session_summary_markdown(session_path: Path, *, max_examples: int = 30) -> str:
+    requests_file = session_path / "requests.json"
+    data: List[Dict[str, Any]] = []
+    if requests_file.exists():
+        try:
+            data = json.loads(requests_file.read_text(encoding="utf-8"))
+            if not isinstance(data, list):
+                data = []
+        except Exception:
+            data = []
+
+    metadata_file = session_path / "metadata.json"
+    metadata: Dict[str, Any] = {}
+    if metadata_file.exists():
+        try:
+            metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+            if not isinstance(metadata, dict):
+                metadata = {}
+        except Exception:
+            metadata = {}
+
+    total_requests = len(data)
+    api_requests = [r for r in data if str(r.get("resource_type", "")).lower() in {"xhr", "fetch"}]
+
+    domains = Counter()
+    methods = Counter()
+    resource_types = Counter()
+    status_codes = Counter()
+    api_endpoints = Counter()
+
+    for r in data:
+        url = str(r.get("url", ""))
+        method = str(r.get("method", "GET")).upper()
+        rt = str(r.get("resource_type", ""))
+        st = r.get("status") if r.get("status") is not None else r.get("status_code")
+
+        methods[method] += 1
+        if rt:
+            resource_types[rt] += 1
+        if st is not None:
+            status_codes[str(st)] += 1
+
+        try:
+            parsed = urlparse(url)
+            if parsed.netloc:
+                domains[parsed.netloc] += 1
+            if str(rt).lower() in {"xhr", "fetch"}:
+                api_endpoints[f"{method} {parsed.path or '/'}"] += 1
+        except Exception:
+            pass
+
+    def _sample_request_for_doc(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not rows:
+            return {}
+        if isinstance(rows[0], dict):
+            return rows[0]
+        return {}
+
+    def _dir_file_count(p: Path) -> int:
+        try:
+            if not p.exists() or not p.is_dir():
+                return 0
+            return len([x for x in p.iterdir() if x.is_file()])
+        except Exception:
+            return 0
+
+    def _read_text_head(p: Path, limit: int = 50_000) -> str:
+        try:
+            if not p.exists() or not p.is_file():
+                return ""
+            return p.read_text(encoding="utf-8", errors="ignore")[:limit]
+        except Exception:
+            return ""
+
+    def _count_lines(text: str) -> int:
+        if not text:
+            return 0
+        return text.count("\n") + 1
+
+    expected_tree = [
+        ("requests.json", "录制的请求列表（核心数据）"),
+        ("metadata.json", "会话元信息（统计/时长/域名等）"),
+        ("trace.har", "HAR 文件（可用于抓包工具复现）"),
+        ("replay_session.py", "回放/验证用 Python 脚本（按录制生成）"),
+        ("requests_index.json", "逐请求脚本索引（py/js 文件映射）"),
+        ("requests_py/", "逐请求 Python 脚本目录"),
+        ("requests_js/", "逐请求 JS(fetch) 脚本目录"),
+        ("responses/", "响应体落盘（response_body_path 指向这里）"),
+        ("hooks/", "Hook 控制台日志（调用栈/事件）"),
+        ("scripts/", "页面脚本资源（尽量抓取并格式化）"),
+        ("styles/", "样式资源"),
+        ("images/", "图片资源"),
+        ("browser_data/", "浏览器侧数据快照（storage/performance/dom 等）"),
+        ("screenshots/", "截图（可选）"),
+    ]
+
+    existing = []
+    for rel, desc in expected_tree:
+        p = session_path / rel.rstrip("/")
+        ok = p.exists()
+        extra = ""
+        try:
+            if ok and p.is_file():
+                extra = f" ({_format_bytes(p.stat().st_size)})"
+        except Exception:
+            extra = ""
+        existing.append(f"- [{'x' if ok else ' '}] `{rel}`{extra} - {desc}")
+
+    api_examples = "\n".join([f"- `{k}` ({v})" for k, v in api_endpoints.most_common(max_examples)])
+    if not api_examples:
+        api_examples = "- (无)"
+
+    def _counter_md(counter: Counter, *, top: int = 20) -> str:
+        items = counter.most_common(top)
+        if not items:
+            return "- (无)"
+        return "\n".join([f"- `{k}`: {v}" for k, v in items])
+
+    lines = [
+        f"# Session Summary - {session_path.name}",
+        "",
+        f"生成时间: {datetime.now().isoformat()}",
+        "",
+        "## 0) Quick Start (for AI)",
+        "目标: 给 AI 足够上下文, 使其可以直接定位代码、复现问题、提出修复并给出验证方式。",
+        "",
+        "你可以优先阅读:",
+        "- 1) 会话产物（文件结构）: 这次录制落盘了哪些数据",
+        "- 2) 请求概览: 关键域名/端点/状态码",
+        "- 6) requests.json 结构: 字段含义与样例",
+        "- 7) 复现与验证步骤: 如何在本项目里重跑/验证",
+        "",
+        "## 0.1) 会话元信息 (metadata.json)",
+        f"- start_url: {metadata.get('start_url') if metadata else '(无)'}",
+        f"- start_time: {metadata.get('start_time') if metadata else '(无)'}",
+        f"- end_time: {metadata.get('end_time') if metadata else '(无)'}",
+        f"- duration_seconds: {metadata.get('duration_seconds') if metadata else '(无)'}",
+        f"- requests_with_call_stack: {metadata.get('requests_with_call_stack') if metadata else '(无)'}",
+        "",
+        "## 1) 会话产物（文件结构）",
+        "\n".join(existing),
+        "",
+        "### 文件/目录数量概览",
+        f"- responses/: {_dir_file_count(session_path / 'responses')} files",
+        f"- scripts/: {_dir_file_count(session_path / 'scripts')} files",
+        f"- styles/: {_dir_file_count(session_path / 'styles')} files",
+        f"- images/: {_dir_file_count(session_path / 'images')} files",
+        f"- hooks/console.log: {_count_lines(_read_text_head(session_path / 'hooks' / 'console.log'))} lines",
+        "",
+        "## 2) 请求概览",
+        f"- 总请求数: {total_requests}",
+        f"- API 请求数(xhr/fetch): {len(api_requests)}",
+        "",
+        "### 域名统计(Top)",
+        _counter_md(domains),
+        "",
+        "### 方法统计",
+        _counter_md(methods),
+        "",
+        "### 资源类型统计",
+        _counter_md(resource_types),
+        "",
+        "### 状态码统计",
+        _counter_md(status_codes),
+        "",
+        "### API 端点示例(Top)",
+        api_examples,
+        "",
+        "## 3) 关键模块职责（定位代码时优先看这些）",
+        "- `backend/app/services/recorder_service.py`: 会话管理、分页查询、清空/删除、落盘与导出触发",
+        "- `backend/core/network_recorder.py`: Playwright 监听 request/response/console，生成 RequestRecord",
+        "- `backend/core/resource_archiver.py`: 创建会话目录并落盘 requests/metadata/har/响应体/browser_data",
+        "- `backend/core/code_generator.py`: 从 requests.json 生成回放代码与逐请求脚本",
+        "- `backend/app/api/v1/crawler.py`: 爬虫/会话 API（start/stop/list/requests/export/zip）",
+        "- `frontend/src/pages/Crawler/index.tsx`: 网络控制台 UI（分页/搜索/清空/详情抽屉）",
+        "",
+        "## 4) 常用 API（前端通常调用这些）",
+        "- `GET /api/v1/crawler/sessions`: 会话列表",
+        "- `GET /api/v1/crawler/requests/{session_id}`: 会话请求分页(支持 q/resource_type/method/status)",
+        "- `DELETE /api/v1/crawler/requests/{session_id}`: 清空会话请求",
+        "- `POST /api/v1/crawler/start`: 启动录制",
+        "- `POST /api/v1/crawler/stop/{session_id}`: 停止录制(会落盘并生成回放脚本)",
+        "- `GET /api/v1/crawler/download-zip/{session_id}`: 下载会话目录 zip",
+        "- `POST /api/v1/code-generator/generate`: 为会话目录生成代码（同时生成本 summary）",
+        "",
+        "## 5) 数据流（快速理解录制→落盘→生成代码）",
+        "1. 前端调用 start -> `RecorderService.start_recording`",
+        "2. Playwright 事件在 `NetworkRecorder` 中被捕获为 `RequestRecord`，响应体落盘到 `responses/`",
+        "3. stop -> `ResourceArchiver.save_requests/save_metadata/save_har` 生成 `requests.json/metadata.json/trace.har`",
+        "4. `core/code_generator.py` 读取 `requests.json` 生成 `replay_session.py` 与 `requests_py/requests_js/requests_index.json`",
+        "",
+        "## 6) requests.json 结构 (AI 必读)",
+        "requests.json 是一个数组, 每一项对应一个 RequestRecord。常用字段:",
+        "- `id`: 请求唯一标识(与响应体文件名相关)",
+        "- `timestamp`: 请求发起时间戳(秒)",
+        "- `method` / `url` / `headers` / `post_data`: 请求信息",
+        "- `status` / `response_headers` / `response_body_path` / `response_size`: 响应信息",
+        "- `content_type`: 响应 Content-Type(不含 charset)",
+        "- `call_stack`: JS 调用栈(重要, 用于定位签名/加密逻辑来源)",
+        "- `resource_type`: xhr/fetch/script/stylesheet/image/document 等",
+        "",
+        "示例(第一条记录):",
+        "```json",
+        json.dumps(_sample_request_for_doc(data), ensure_ascii=False, indent=2) if data else "{}",
+        "```",
+        "",
+        "定位响应体: 如果记录包含 `response_body_path`, 该路径相对当前 session 目录。",
+        "例如: `responses/123.json` 表示 `./responses/123.json`。",
+        "",
+        "## 7) 复现与验证步骤 (推荐给 AI 的操作顺序)",
+        "1. 获取会话列表: `GET /api/v1/crawler/sessions`",
+        "2. 拉取请求分页: `GET /api/v1/crawler/requests/{session_id}?offset=0&limit=30&q=...`",
+        "3. 若需要清空: `DELETE /api/v1/crawler/requests/{session_id}`",
+        "4. 结束录制后生成回放脚本: `POST /api/v1/crawler/stop/{session_id}` (会写入 session 目录)",
+        "5. 生成代码与总结: `POST /api/v1/code-generator/generate`",
+        "6. 本地验证回放脚本: 运行 `replay_session.py` (或生成的 session_*.py) 并对比状态码/返回结构",
+        "",
+        "## 8) 常见问题与排查清单",
+        "- 请求列表为空: 检查 `requests.json` 是否存在; 检查录制是否已 stop 并落盘; 检查前端分页 offset/limit",
+        "- 清空不生效: 检查是否调用了 `DELETE /api/v1/crawler/requests/{session_id}`; 检查 session 级 requests.json 是否被写空",
+        "- JS 调用栈缺失: 可能是 Hook 注入失败或该请求不是 fetch/xhr; 检查 `hooks/console.log`",
+        "- 响应体缺失: `response_body_path` 为空或落盘失败; 检查 `responses/` 与 `scripts/` 目录",
+        "",
+        "## 9) AI 处理模板 (建议按此输出)",
+        "- Problem: 用一句话描述要解决的问题",
+        "- Expected Behavior: 期望行为是什么",
+        "- Observed Behavior: 实际行为是什么(尽量引用本 summary 的统计/样例)",
+        "- Root Cause Hypothesis: 1-3 条假设, 每条对应到具体文件/函数",
+        "- Change Plan: 要改哪些文件/函数, 为什么",
+        "- Patch Summary: 关键改动点(接口/字段/逻辑)",
+        "- Verification: 如何验证(包含 API 调用或脚本运行)",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def write_session_summary(session_path: Path, *, filename: str = "SESSION_SUMMARY.md") -> Path:
+    out_path = session_path / filename
+    content = generate_session_summary_markdown(session_path)
+    out_path.write_text(content, encoding="utf-8")
+    return out_path

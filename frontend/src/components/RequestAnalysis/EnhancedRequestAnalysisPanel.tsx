@@ -748,7 +748,7 @@ console.log(data);`;
         <div>
           <div style={{ marginBottom: 16 }}>
             <Text type="secondary">
-              🚀 这是根据录制的HTTP请求生成的Python代码，可以直接运行来验证请求逻辑。
+              这是根据录制的HTTP请求生成的Python代码，可以直接运行来验证请求逻辑。
               包含JavaScript分析功能，帮助AI理解签名算法等复杂逻辑。
             </Text>
           </div>
@@ -765,7 +765,7 @@ console.log(data);`;
           </pre>
           <div style={{ marginTop: 16 }}>
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              💡 提示：生成的代码包含完整的会话类、所有API请求方法、JavaScript调用栈分析等功能。
+              提示：生成的代码包含完整的会话类、所有API请求方法、JavaScript调用栈分析等功能。
               可以直接在Python环境中运行，便于AI分析和调试。
             </Text>
           </div>

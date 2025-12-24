@@ -67,12 +67,12 @@ export const MainApp: React.FC = () => {
       switch (command) {
         case 'clear':
           setChatMessages([]);
-          result = { message: '✅ 会话历史已清除' };
+          result = { message: '[OK] 会话历史已清除' };
           break;
           
         case 'stats':
           result = {
-            message: '📊 会话统计信息',
+            message: '[STAT] 会话统计信息',
             data: {
               ...sessionStats,
               authType: authType,
@@ -85,20 +85,20 @@ export const MainApp: React.FC = () => {
         case 'model':
           if (args[0]) {
             setCurrentModel(args[0]);
-            result = { message: `🤖 已切换到模型: ${args[0]}` };
+            result = { message: `[OK] 已切换到模型: ${args[0]}` };
           } else {
-            result = { message: `🤖 当前模型: ${currentModel}` };
+            result = { message: `当前模型: ${currentModel}` };
           }
           break;
           
         case 'auth':
           setShowLoginModal(true);
-          result = { message: '🔐 打开认证设置' };
+          result = { message: '打开认证设置' };
           break;
           
         case 'help':
           result = {
-            message: '📖 Web Analyzer 帮助',
+            message: 'Web Analyzer 帮助',
             data: {
               commands: [
                 '/clear - 清除会话历史',
@@ -139,7 +139,7 @@ export const MainApp: React.FC = () => {
       
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: `❌ 命令执行失败: ${error}`,
+        content: `[FAIL] 命令执行失败: ${error}`,
         type: 'system',
         timestamp: new Date()
       };
@@ -185,7 +185,7 @@ export const MainApp: React.FC = () => {
       
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: `❌ 发送失败: ${error}`,
+        content: `[FAIL] 发送失败: ${error}`,
         type: 'system',
         timestamp: new Date()
       };
@@ -261,9 +261,9 @@ export const MainApp: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
               <Text strong style={{ color: colors[msg.type] }}>
-                {msg.type === 'user' ? '👤 我' : 
-                 msg.type === 'assistant' ? '🤖 助手' :
-                 msg.type === 'command' ? '⚡ 命令' : '🔧 系统'}
+                {msg.type === 'user' ? '我' : 
+                 msg.type === 'assistant' ? '助手' :
+                 msg.type === 'command' ? '命令' : '系统'}
               </Text>
               {msg.model && <Text type="secondary"> • {msg.model}</Text>}
               <div style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
@@ -397,7 +397,7 @@ export const MainApp: React.FC = () => {
                 {isAuthenticated && (
                   <div style={{ marginTop: 16, fontSize: '14px' }}>
                     <Text type="secondary">
-                      💡 试试这些命令: /help, /stats, /model qwen-coder
+                      提示: 试试这些命令: /help, /stats, /model qwen-coder
                     </Text>
                   </div>
                 )}

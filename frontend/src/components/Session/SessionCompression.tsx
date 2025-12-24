@@ -252,13 +252,13 @@ export const SessionCompression: React.FC<SessionCompressionProps> = ({
           <div>
             <p>当前Token使用率: {tokenUsage.percentage.toFixed(1)}%</p>
             {tokenUsage.percentage >= 90 && (
-              <p>⚠️ Token即将用完，请立即执行压缩或清除操作</p>
+              <p>[WARN] Token即将用完，请立即执行压缩或清除操作</p>
             )}
             {tokenUsage.percentage >= 80 && tokenUsage.percentage < 90 && (
-              <p>💡 建议执行压缩以释放空间，继续对话</p>
+              <p>建议执行压缩以释放空间，继续对话</p>
             )}
             {tokenUsage.percentage >= 60 && tokenUsage.percentage < 80 && (
-              <p>ℹ️ Token使用较多，可考虑适当压缩</p>
+              <p>提示: Token使用较多，可考虑适当压缩</p>
             )}
           </div>
         }

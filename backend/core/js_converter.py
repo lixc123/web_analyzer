@@ -80,7 +80,7 @@ class PythonJSConverter:
         code_parts.append('''
 def analyze_javascript_context():
     """分析JavaScript执行上下文"""
-    print("📋 JavaScript调用栈分析:")
+    print("[INFO] JavaScript调用栈分析:")
     ''')
         
         # 添加调用栈信息
@@ -104,7 +104,7 @@ def analyze_javascript_context():
         with open(js_file_path, 'r', encoding='utf-8') as f:
             js_content = f.read()
         
-        print(f"\\n📄 分析JavaScript文件: {{js_file_path}}")
+        print(f"\\n[INFO] 分析JavaScript文件: {{js_file_path}}")
         print(f"  - 文件大小: {{len(js_content)}} 字符")
         
         # 查找可能的签名算法
@@ -113,7 +113,7 @@ def analyze_javascript_context():
         # 提取可能的关键函数
         {self._generate_function_extraction_code(main_func['name'])}
     else:
-        print(f"⚠️ JavaScript文件不存在: {{js_file_path}}")
+        print(f"[WARN] JavaScript文件不存在: {{js_file_path}}")
 ''')
         
         code_parts.append('''
@@ -154,12 +154,12 @@ def analyze_javascript_context():
             'sign': re.findall(r'sign\\s*[:=]\\s*[^,}]+', js_content, re.IGNORECASE),
         }
         
-        print("\\n🔍 检测到的可能算法:")
+        print("\\n[INFO] 检测到的可能算法:")
         for pattern_name, matches in patterns.items():
             if matches:
                 print(f"  - {pattern_name}: {len(matches)} 处")
                 for match in matches[:3]:  # 只显示前3个
-                    print(f"    → {match[:50]}...")'''
+                    print(f"    - {match[:50]}...")'''
     
     def _generate_function_extraction_code(self, main_func_name: str) -> str:
         """生成函数提取代码"""
@@ -168,72 +168,80 @@ def analyze_javascript_context():
         func_matches = re.findall(func_pattern, js_content, re.MULTILINE | re.DOTALL)
         
         if func_matches:
-            print(f"\\n🎯 找到函数 {main_func_name}:")
+            print(f"\\n[INFO] 找到函数 {main_func_name}:")
             for i, match in enumerate(func_matches[:2]):  # 最多显示2个
                 print(f"  版本 {{i+1}}: {{match[:200]}}...")
                 
                 # 尝试转换为Python伪代码
                 python_equivalent = convert_js_to_python_pseudo(match)
-                print(f"\\n🐍 Python等价代码 (伪代码):")
+                print(f"\\n[INFO] Python等价代码 (伪代码):")
                 print(python_equivalent)
         else:
-            print(f"⚠️ 未找到函数 {main_func_name} 的定义")'''
+            print(f"[WARN] 未找到函数 {main_func_name} 的定义")'''
     
     def generate_js_execution_code(self) -> str:
         """生成JavaScript执行代码（使用pyexecjs）"""
-        return '''
-def execute_javascript_logic(js_code, input_data):
-    """执行JavaScript逻辑（需要安装 pyexecjs）"""
-    try:
-        import execjs
-        
-        # 创建JavaScript执行环境
-        ctx = execjs.compile(js_code)
-        
-        # 执行JavaScript函数
-        result = ctx.call('main_function', input_data)
-        
-        print(f"🚀 JavaScript执行结果: {result}")
-        return result
-        
-    except ImportError:
-        print("⚠️ 需要安装 pyexecjs: pip install pyexecjs")
-        return None
-    except Exception as e:
-        print(f"❌ JavaScript执行失败: {e}")
-        return None
-
-def convert_js_to_python_pseudo(js_code):
-    """将JavaScript代码转换为Python伪代码"""
-    python_code = js_code
-    
-    # 基本语法转换
-    replacements = [
-        (r'function\\s+(\\w+)\\s*\\(([^)]*)\\)', r'def \\1(\\2):'),
-        (r'var\\s+(\\w+)', r'\\1'),
-        (r'let\\s+(\\w+)', r'\\1'),
-        (r'const\\s+(\\w+)', r'\\1'),
-        (r'===', '=='),
-        (r'!==', '!='),
-        (r'Math\\.random\\(\\)', 'random.random()'),
-        (r'Date\\.now\\(\\)', 'int(time.time() * 1000)'),
-        (r'JSON\\.stringify\\(([^)]+)\\)', 'json.dumps(\\1)'),
-        (r'console\\.log\\(([^)]+)\\)', 'print(\\1)'),
-    ]
-    
-    for pattern, replacement in replacements:
-        python_code = re.sub(pattern, replacement, python_code)
-    
-    return f'''# 自动转换的Python伪代码（需要人工调整）
-import json
-import time
-import random
-import hashlib
-
-{python_code}
-
-# 注意: 这只是基础转换，复杂逻辑需要手动调整
-'''
+        return "\n".join(
+            [
+                "",
+                "def execute_javascript_logic(js_code, input_data):",
+                "    \"\"\"执行JavaScript逻辑（需要安装 pyexecjs）\"\"\"",
+                "    try:",
+                "        import execjs",
+                "",
+                "        # 创建JavaScript执行环境",
+                "        ctx = execjs.compile(js_code)",
+                "",
+                "        # 执行JavaScript函数",
+                "        result = ctx.call('main_function', input_data)",
+                "",
+                "        print(f\"[INFO] JavaScript执行结果: {result}\")",
+                "        return result",
+                "",
+                "    except ImportError:",
+                "        print(\"[WARN] 需要安装 pyexecjs: pip install pyexecjs\")",
+                "        return None",
+                "    except Exception as e:",
+                "        print(f\"[FAIL] JavaScript执行失败: {e}\")",
+                "        return None",
+                "",
+                "",
+                "def convert_js_to_python_pseudo(js_code):",
+                "    \"\"\"将JavaScript代码转换为Python伪代码\"\"\"",
+                "    python_code = js_code",
+                "",
+                "    # 基本语法转换",
+                "    replacements = [",
+                "        (r'function\\\\s+(\\\\w+)\\\\s*\\\\(([^)]*)\\\\)', r'def \\\\1(\\\\2):'),",
+                "        (r'var\\\\s+(\\\\w+)', r'\\\\1'),",
+                "        (r'let\\\\s+(\\\\w+)', r'\\\\1'),",
+                "        (r'const\\\\s+(\\\\w+)', r'\\\\1'),",
+                "        (r'===', '=='),",
+                "        (r'!==', '!='),",
+                "        (r'Math\\\\.random\\\\(\\\\)', 'random.random()'),",
+                "        (r'Date\\\\.now\\\\(\\\\)', 'int(time.time() * 1000)'),",
+                "        (r'JSON\\\\.stringify\\\\(([^)]+)\\\\)', 'json.dumps(\\\\1)'),",
+                "        (r'console\\\\.log\\\\(([^)]+)\\\\)', 'print(\\\\1)'),",
+                "    ]",
+                "",
+                "    for pattern, replacement in replacements:",
+                "        python_code = re.sub(pattern, replacement, python_code)",
+                "",
+                "    return \"\\n\".join([",
+                "        '# 自动转换的Python伪代码（需要人工调整）',",
+                "        'import json',",
+                "        'import time',",
+                "        'import random',",
+                "        'import hashlib',",
+                "        '',",
+                "        python_code,",
+                "        '',",
+                "        '# 注意: 这只是基础转换，复杂逻辑需要手动调整',",
+                "        '',",
+                "    ])",
+                "",
+            ]
+        )
 
 
 def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], session_path: Path) -> str:
@@ -258,12 +266,15 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
     
     for i, stack in enumerate(unique_stacks):
         js_code = converter.generate_js_analysis_code(stack, session_path)
-        method_code = f'''
-    def analyze_js_context_{i}(self):
-        """分析JavaScript上下文 {i+1}"""
-        print("🔍 分析JavaScript上下文 {i+1}...")
-        return {{'context': {i+1}, 'analysis_complete': True}}
-'''
+        method_code = "\n".join(
+            [
+                "",
+                f"    def analyze_js_context_{i}(self):",
+                f"        \"\"\"分析JavaScript上下文 {i+1}\"\"\"",
+                f"        print(\"[INFO] 分析JavaScript上下文 {i+1}...\")",
+                "        return {'context': %d, 'analysis_complete': True}" % (i + 1),
+            ]
+        )
         js_analysis_methods.append(method_code)
     
     # 添加JavaScript执行代码
@@ -276,26 +287,29 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
     class_end_pattern = r'(\s+def _get_request_methods\(self\):.*?\n\s+return \[.*?\])'
     if re.search(class_end_pattern, enhanced_code, re.DOTALL):
         js_methods = '\n'.join(js_analysis_methods)
-        js_methods += '''
-    def analyze_all_js_contexts(self):
-        """分析所有JavaScript上下文"""
-        print("🔍 开始JavaScript代码分析...")
-        js_results = []
-        '''
-        
-        for i in range(len(unique_stacks)):
-            js_methods += f'''
-        try:
-            result = self.analyze_js_context_{i}()
-            js_results.append(result)
-        except Exception as e:
-            print(f"❌ JavaScript分析 {i+1} 失败: {{e}}")
-            js_results.append({{'error': str(e)}})
-'''
-        
-        js_methods += '''
-        return js_results
-'''
+        js_methods_lines = [
+            js_methods,
+            "",
+            "    def analyze_all_js_contexts(self):",
+            "        \"\"\"分析所有JavaScript上下文\"\"\"",
+            "        print(\"[INFO] 开始JavaScript代码分析...\")",
+            "        js_results = []",
+        ]
+
+        for j in range(len(unique_stacks)):
+            js_methods_lines.extend(
+                [
+                    "        try:",
+                    f"            result = self.analyze_js_context_{j}()",
+                    "            js_results.append(result)",
+                    "        except Exception as e:",
+                    f"            print(f\"[FAIL] JavaScript分析 {j+1} 失败: {{e}}\")",
+                    "            js_results.append({'error': str(e)})",
+                ]
+            )
+
+        js_methods_lines.extend(["", "        return js_results", ""])
+        js_methods = "\n".join(js_methods_lines)
         
         enhanced_code = re.sub(
             class_end_pattern,
@@ -312,18 +326,21 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
     # 在主函数中添加JS分析调用
     main_function_pattern = r'(\s+# 执行所有请求\s+results = session\.run_all_requests\(\))'
     if re.search(main_function_pattern, enhanced_code):
-        js_call = '''
-    
-    # JavaScript代码分析
-    print("\\n" + "="*50)
-    js_analysis_results = session.analyze_all_js_contexts()
-    
-    # 保存JavaScript分析结果
-    with open(f'js_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json', 'w', encoding='utf-8') as f:
-        json.dump(js_analysis_results, f, ensure_ascii=False, indent=2)
-    print("💾 JavaScript分析结果已保存")
-    print("="*50)
-'''
+        js_call = "\n".join(
+            [
+                "",
+                "    # JavaScript代码分析",
+                "    print(\\\"\\n\\\" + \\\"=\\\"*50)",
+                "    js_analysis_results = session.analyze_all_js_contexts()",
+                "",
+                "    # 保存JavaScript分析结果",
+                "    with open(f\\\"js_analysis_{datetime.now().strftime('%%Y%%m%%d_%%H%%M%%S')}.json\\\", 'w', encoding='utf-8') as f:",
+                "        json.dump(js_analysis_results, f, ensure_ascii=False, indent=2)",
+                "    print(\\\"[OK] JavaScript分析结果已保存\\\")",
+                "    print(\\\"=\\\"*50)",
+                "",
+            ]
+        )
         enhanced_code = re.sub(
             main_function_pattern,
             js_call + r'\1',

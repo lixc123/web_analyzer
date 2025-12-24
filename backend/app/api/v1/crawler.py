@@ -156,6 +156,17 @@ async def get_session_requests(
         logger.error(f"获取会话请求失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取会话请求失败: {str(e)}")
 
+
+@router.delete("/requests/{session_id}")
+async def clear_session_requests(session_id: str, db: Session = Depends(get_db)):
+    """清空会话的请求记录"""
+    try:
+        recorder_service = get_recorder_service()
+        return await recorder_service.clear_session_requests(session_id)
+    except Exception as e:
+        logger.error(f"清空会话请求失败: {e}")
+        raise HTTPException(status_code=500, detail=f"清空会话请求失败: {str(e)}")
+
 @router.delete("/session/{session_id}")
 async def delete_crawler_session(session_id: str, db: Session = Depends(get_db)):
     """删除爬虫会话"""
