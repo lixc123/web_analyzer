@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 from .browser_manager import BrowserManager
+from .js_hooks import JS_HOOK_SCRIPT
 from .resource_archiver import ResourceArchiver
 from models.request_record import RequestRecord
 
@@ -204,18 +205,41 @@ class NetworkRecorder:
     def _associate_call_stack(self, hook_text: str) -> None:
         """解析 Hook 日志，将调用栈关联到匹配的 RequestRecord。"""
         try:
-            # 格式: [FETCH_HOOK] {"url": "...", "stack": "..."}
-            # 或:   [XHR_HOOK] {"method": "...", "url": "...", "body": "...", "stack": "..."}
+            hook_url = ""
+            stack = ""
+
+            # 兼容旧格式:
+            # [FETCH_HOOK] {"url": "...", "stack": "..."}
+            # [XHR_HOOK] {"method": "...", "url": "...", "body": "...", "stack": "..."}
             if hook_text.startswith("[FETCH_HOOK] "):
                 json_str = hook_text[len("[FETCH_HOOK] "):]
+                data = json.loads(json_str)
+                hook_url = data.get("url", "")
+                stack = data.get("stack", "")
             elif hook_text.startswith("[XHR_HOOK] "):
                 json_str = hook_text[len("[XHR_HOOK] "):]
+                data = json.loads(json_str)
+                hook_url = data.get("url", "")
+                stack = data.get("stack", "")
+
+            # 兼容新格式: JS_HOOK_SCRIPT 使用 console.log('[WEB_RECORDER_xxx]', JSON.stringify(payload))
+            # message.text 常见形态为: [WEB_RECORDER_FETCH_START] {"timestamp":...,"url":"...","stack":"..."}
+            elif hook_text.startswith("[WEB_RECORDER_"):
+                import re
+
+                match = re.match(r"\[WEB_RECORDER_([^\]]+)\]\s*(.+)", hook_text)
+                if not match:
+                    return
+                event_type = match.group(1)
+                json_str = match.group(2)
+                # 只在请求发起时做关联，避免响应事件覆盖
+                if event_type not in {"FETCH_START", "XHR_START"}:
+                    return
+                data = json.loads(json_str)
+                hook_url = data.get("url", "")
+                stack = data.get("stack", "")
             else:
                 return
-
-            data = json.loads(json_str)
-            hook_url = data.get("url", "")
-            stack = data.get("stack", "")
 
             if not hook_url or not stack:
                 return
@@ -268,6 +292,13 @@ class NetworkRecorder:
             print("🔄 创建新页面...")
             page = await browser_context.new_page()
             print("✅ 新页面已创建")
+
+        try:
+            target_page = getattr(page, "async_page", page)
+            if hasattr(target_page, "add_init_script"):
+                await target_page.add_init_script(JS_HOOK_SCRIPT)
+        except Exception:
+            pass
         
         # 设置页面到browser_manager（需要处理包装器）
         if hasattr(page, 'sync_page'):

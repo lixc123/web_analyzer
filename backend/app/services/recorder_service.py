@@ -48,6 +48,7 @@ class RecorderService:
         self.active_sessions: Dict[str, Dict] = {}
         self.session_recorders: Dict[str, NetworkRecorder] = {}
         self.browser_managers: Dict[str, BrowserManager] = {}
+        self.session_archivers: Dict[str, ResourceArchiver] = {}
 
         self._realtime_tasks: Dict[str, asyncio.Task] = {}
         self._realtime_sent_counts: Dict[str, int] = {}
@@ -206,16 +207,18 @@ class RecorderService:
         sessions_base_dir = Path(settings.data_dir) / "sessions"
         archiver = ResourceArchiver(
             base_output_dir=sessions_base_dir,
-            log_callback=lambda msg: logger.info(f"[ResourceArchiver] {msg}")
+            log_callback=lambda msg: logger.info(f"[ResourceArchiver] {msg}"),
+            session_id=session_id,
         )
         archiver.set_start_url(url)
+        self.session_archivers[session_id] = archiver
         
         # Create fresh instances for each session with proper config
         config = session_data["config"]
         recorder = NetworkRecorder(
             browser_manager=browser_manager,
             log_callback=lambda msg: print(f" [录制] {msg}"),
-            archiver=None,  # Will be set after recorder.start()
+            archiver=archiver,
             config=config  # 传递用户配置
         )
         
@@ -233,6 +236,7 @@ class RecorderService:
         session = self.active_sessions[session_id]
         recorder = self.session_recorders[session_id]
         browser_manager = self.browser_managers[session_id]
+        archiver = self.session_archivers.get(session_id)
         
         try:
             # 更新会话状态
@@ -250,6 +254,15 @@ class RecorderService:
                 config.get("user_agent"),
                 config.get("timeout", 30)
             )
+
+            # 确保录制器已经绑定 archiver（用于响应落盘、hook落盘、浏览器数据落盘）
+            if archiver is not None:
+                recorder.set_archiver(archiver)
+                try:
+                    if hasattr(browser_manager, "set_screenshot_directory"):
+                        browser_manager.set_screenshot_directory(str(archiver.session_dir / "screenshots"))
+                except Exception:
+                    pass
             
             # 🟢 使用现有NetworkRecorder开始录制 - 直接调用async方法
             await recorder.start_recording(browser_context, session["url"])
@@ -283,11 +296,137 @@ class RecorderService:
         session = self.active_sessions[session_id]
         recorder = self.session_recorders.get(session_id)
         browser_manager = self.browser_managers.get(session_id)
+        archiver = self.session_archivers.get(session_id)
         
         try:
             # 🟢 使用现有NetworkRecorder停止录制 - 直接调用async方法
             if recorder:
                 await recorder.stop()
+
+            # 录制停止后，尽可能抓取并保存 JS 资源（即使部分脚本从缓存导致 response.body 为空也能补全）
+            if archiver is not None and browser_manager and getattr(browser_manager, "page", None) is not None:
+                try:
+                    await archiver.save_js_resources(browser_manager.page)
+                    archiver.beautify_js_files(use_builtin=True)
+                except Exception as e:
+                    logger.warning(f"保存JS资源失败 {session_id}: {e}")
+                page = getattr(browser_manager, "page", None)
+                if page is not None:
+                    try:
+                        storage_snapshot = await page.evaluate(
+                            """() => {
+                                const ls = {};
+                                const ss = {};
+                                try {
+                                    for (let i = 0; i < localStorage.length; i++) {
+                                        const k = localStorage.key(i);
+                                        ls[k] = localStorage.getItem(k);
+                                    }
+                                } catch (e) {}
+                                try {
+                                    for (let i = 0; i < sessionStorage.length; i++) {
+                                        const k = sessionStorage.key(i);
+                                        ss[k] = sessionStorage.getItem(k);
+                                    }
+                                } catch (e) {}
+                                return { url: location.href, localStorage: ls, sessionStorage: ss };
+                            }"""
+                        )
+                        archiver.save_browser_data("STORAGE_SNAPSHOT", storage_snapshot)
+                    except Exception as e:
+                        logger.warning(f"导出storage快照失败 {session_id}: {e}")
+
+                    try:
+                        perf_snapshot = await page.evaluate(
+                            """() => {
+                                try {
+                                    const nav = performance.getEntriesByType('navigation') || [];
+                                    const res = performance.getEntriesByType('resource') || [];
+                                    return {
+                                        url: location.href,
+                                        navigation: nav.map(n => ({
+                                            name: n.name,
+                                            startTime: n.startTime,
+                                            duration: n.duration,
+                                            domContentLoadedEventEnd: n.domContentLoadedEventEnd,
+                                            loadEventEnd: n.loadEventEnd,
+                                            responseEnd: n.responseEnd,
+                                            domComplete: n.domComplete
+                                        })),
+                                        resources: res.map(r => ({
+                                            name: r.name,
+                                            initiatorType: r.initiatorType,
+                                            startTime: r.startTime,
+                                            duration: r.duration,
+                                            transferSize: r.transferSize,
+                                            encodedBodySize: r.encodedBodySize,
+                                            decodedBodySize: r.decodedBodySize
+                                        }))
+                                    };
+                                } catch (e) {
+                                    return { error: String(e) };
+                                }
+                            }"""
+                        )
+                        archiver.save_browser_data("PERFORMANCE_SNAPSHOT", perf_snapshot)
+                    except Exception as e:
+                        logger.warning(f"导出performance快照失败 {session_id}: {e}")
+
+                    try:
+                        dom_snapshot = await page.evaluate(
+                            """() => {
+                                try {
+                                    const html = document.documentElement ? document.documentElement.outerHTML : '';
+                                    return { url: location.href, title: document.title, html: html, length: html.length };
+                                } catch (e) {
+                                    return { error: String(e) };
+                                }
+                            }"""
+                        )
+                        if isinstance(dom_snapshot, dict) and isinstance(dom_snapshot.get("html"), str):
+                            if len(dom_snapshot["html"]) > 1000000:
+                                dom_snapshot["html"] = dom_snapshot["html"][:1000000]
+                                dom_snapshot["truncated"] = True
+                        archiver.save_browser_data("DOM_FINAL", dom_snapshot)
+                    except Exception as e:
+                        logger.warning(f"导出DOM快照失败 {session_id}: {e}")
+
+                try:
+                    storage_state_path = archiver.session_dir / "browser_data" / "storage" / "storage_state.json"
+                    await browser_manager.export_storage_state(storage_state_path)
+                    try:
+                        legacy_path = archiver.session_dir / "browser_data" / "storage_state.json"
+                        legacy_path.write_text(storage_state_path.read_text(encoding="utf-8"), encoding="utf-8")
+                    except Exception:
+                        pass
+                except Exception as e:
+                    logger.warning(f"导出storage_state失败 {session_id}: {e}")
+
+            # 生成 metadata / har / requests.json（基于 RequestRecord，包含 response_body_path 等）
+            if archiver is not None and recorder:
+                try:
+                    archiver.save_requests(recorder.records)
+                    archiver.save_metadata(recorder.records)
+                    archiver.save_har(recorder.records)
+                except Exception as e:
+                    logger.warning(f"导出会话文件失败 {session_id}: {e}")
+
+            # 生成可执行 Python 回放代码
+            if archiver is not None:
+                try:
+                    from core.code_generator import generate_code_from_session, generate_per_request_scripts
+
+                    replay_code = generate_code_from_session(archiver.session_dir)
+                    replay_path = archiver.session_dir / "replay_session.py"
+                    with open(replay_path, "w", encoding="utf-8") as f:
+                        f.write(replay_code)
+                    logger.info(f"已生成回放代码: {replay_path}")
+                    try:
+                        generate_per_request_scripts(archiver.session_dir)
+                    except Exception as e:
+                        logger.warning(f"生成逐请求脚本失败 {session_id}: {e}")
+                except Exception as e:
+                    logger.warning(f"生成回放代码失败 {session_id}: {e}")
             
             # 🟢 使用现有BrowserManager关闭浏览器 - 直接调用async方法
             if browser_manager:
@@ -368,7 +507,68 @@ class RecorderService:
         except Exception as e:
             logger.warning(f"加载历史会话失败: {e}")
 
-        return list(sessions_by_id.values())
+        sessions_list = list(sessions_by_id.values())
+
+        try:
+            from core.code_generator import generate_per_request_scripts
+
+            sessions_base_dir = Path(settings.data_dir) / "sessions"
+            for s in sessions_list:
+                sid = (s.get("session_id") or s.get("session_name") or "").strip()
+                if not sid:
+                    continue
+
+                safe_sid = Path(sid).name
+                session_dir = sessions_base_dir / safe_sid
+                if not session_dir.exists() or not session_dir.is_dir():
+                    continue
+
+                requests_file = session_dir / "requests.json"
+                if not requests_file.exists():
+                    continue
+
+                out_py = session_dir / "requests_py"
+                out_js = session_dir / "requests_js"
+                try:
+                    py_count = len(list(out_py.glob("*.py"))) if out_py.exists() else 0
+                    js_count = len(list(out_js.glob("*.js"))) if out_js.exists() else 0
+                except Exception:
+                    py_count = 0
+                    js_count = 0
+
+                if py_count <= 1 and js_count <= 1:
+                    try:
+                        generate_per_request_scripts(session_dir)
+                    except Exception as e:
+                        logger.warning(f"补生成逐请求脚本失败 {safe_sid}: {e}")
+        except Exception as e:
+            logger.warning(f"逐请求脚本自愈检查失败: {e}")
+
+        def _sort_key(s: Dict) -> tuple:
+            created_raw = s.get("created_at") or s.get("updated_at") or ""
+            sid = s.get("session_id") or s.get("session_name") or ""
+
+            dt = None
+            if isinstance(created_raw, str) and created_raw:
+                try:
+                    dt = datetime.fromisoformat(created_raw)
+                except Exception:
+                    dt = None
+
+            if dt is None and isinstance(sid, str) and sid.startswith("session_"):
+                try:
+                    ts = sid[len("session_"):]
+                    dt = datetime.strptime(ts, "%Y%m%d_%H%M%S")
+                except Exception:
+                    dt = None
+
+            if dt is None:
+                dt = datetime.min
+
+            return (dt, str(sid))
+
+        sessions_list.sort(key=_sort_key, reverse=True)
+        return sessions_list
     
     async def get_session_requests(self, session_id: str, offset: int = 0, limit: int = 100) -> List[Dict]:
         """获取会话的请求记录"""
@@ -611,8 +811,6 @@ class RecorderService:
             recorded_requests = recorder.records
             
             # 🟢 保存到session级别的requests.json文件
-            existing_requests = HybridStorage.load_session_requests(session_id)
-            
             # 序列化请求记录（session_id在session级别存储中不再需要）
             serialized_requests = []
             for request in recorded_requests:
@@ -638,12 +836,9 @@ class RecorderService:
                     logger.warning(f"序列化请求失败，跳过: {e}")
                     continue
             
-            # 合并并保存到session级别的requests.json
-            if not isinstance(existing_requests, list):
-                existing_requests = []
-            existing_requests.extend(serialized_requests)
-            
-            HybridStorage.save_session_requests(session_id, existing_requests)
+            # 覆盖保存到 session 级别 requests.json，避免重复追加导致同一会话数据膨胀
+            # 如需增量保存，应由调用方明确实现（目前 stop_recording 会保存最终结果）
+            HybridStorage.save_session_requests(session_id, serialized_requests)
             
             # 保存会话元数据
             sessions_file = HybridStorage.get_sessions_json_path()

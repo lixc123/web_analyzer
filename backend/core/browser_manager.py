@@ -208,6 +208,11 @@ class BrowserManager:
             context = await browser.new_context(**context_options)
             context.set_default_timeout(timeout * 1000)
             print("✅ 浏览器上下文已创建")
+
+            try:
+                await context.add_init_script(JS_HOOK_SCRIPT)
+            except Exception as e:
+                print(f"⚠️ JS Hook注入失败: {e}")
             
             page = await context.new_page()
             print("✅ 新页面已创建")

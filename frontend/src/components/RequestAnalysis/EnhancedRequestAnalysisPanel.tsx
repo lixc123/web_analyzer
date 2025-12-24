@@ -27,7 +27,9 @@ import {
   PlayCircleOutlined,
   FilterOutlined,
   ExportOutlined,
-  EyeOutlined
+  EyeOutlined,
+  FileTextOutlined,
+  RocketOutlined
 } from '@ant-design/icons';
 import CallStackAnalyzer from './CallStackAnalyzer';
 
@@ -73,6 +75,9 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [isRecording, setIsRecording] = useState(false);
+  const [showGeneratedCode, setShowGeneratedCode] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [codeGenerating, setCodeGenerating] = useState(false);
 
   // 加载真实请求数据
   useEffect(() => {
@@ -170,6 +175,71 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
       }
     } catch (error) {
       message.error(`请求重放失败: ${error}`);
+    }
+  };
+
+  // 生成会话Python代码
+  const generateSessionCode = async () => {
+    try {
+      setCodeGenerating(true);
+      message.loading('正在生成Python代码...', 0.5);
+      
+      // 模拟会话路径 - 实际项目中应该从会话管理获取
+      const sessionPath = 'C:\\Users\\Administrator\\Desktop\\WEB_p\\new\\web_analyzer_v2\\data\\sessions\\session_20241224_174600';
+      
+      const response = await fetch('/api/v1/code/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_path: sessionPath,
+          include_js_analysis: true,
+          output_format: 'python'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGeneratedCode(data.code_preview || '// 代码生成成功，但预览为空');
+        setShowGeneratedCode(true);
+        message.success(`代码生成成功！包含 ${data.stats?.api_requests || 0} 个API请求`);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '代码生成失败');
+      }
+    } catch (error) {
+      message.error(`代码生成失败: ${error}`);
+    } finally {
+      setCodeGenerating(false);
+    }
+  };
+
+  // 下载会话代码
+  const downloadSessionCode = async () => {
+    try {
+      message.loading('正在下载代码文件...', 0.5);
+      
+      // 模拟会话名称 - 实际项目中应该从会话管理获取
+      const sessionName = 'session_20241224_174600';
+      
+      const response = await fetch(`/api/v1/code/download/${sessionName}`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `session_${sessionName}_generated.py`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        message.success('代码文件下载成功！');
+      } else {
+        throw new Error('下载失败');
+      }
+    } catch (error) {
+      message.error(`下载失败: ${error}`);
     }
   };
 
@@ -377,6 +447,21 @@ console.log(data);`;
             <Button icon={<ReloadOutlined />}>刷新</Button>
             <Button icon={<ExportOutlined />}>导出HAR</Button>
             <Button icon={<DownloadOutlined />}>导出报告</Button>
+            <Button 
+              type="primary"
+              icon={<RocketOutlined />}
+              loading={codeGenerating}
+              onClick={generateSessionCode}
+            >
+              生成Python代码
+            </Button>
+            <Button 
+              icon={<FileTextOutlined />}
+              onClick={downloadSessionCode}
+              disabled={codeGenerating}
+            >
+              下载代码
+            </Button>
           </Space>
         </div>
 
@@ -640,6 +725,51 @@ console.log(data);`;
             ]}
           />
         )}
+      </Modal>
+
+      {/* 生成的代码展示模态框 */}
+      <Modal
+        title="生成的Python会话代码"
+        open={showGeneratedCode}
+        onCancel={() => setShowGeneratedCode(false)}
+        width={1000}
+        footer={[
+          <Button key="copy" onClick={() => {
+            navigator.clipboard.writeText(generatedCode);
+            message.success('代码已复制到剪贴板');
+          }}>
+            复制全部代码
+          </Button>,
+          <Button key="download" type="primary" onClick={downloadSessionCode}>
+            下载完整代码文件
+          </Button>
+        ]}
+      >
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <Text type="secondary">
+              🚀 这是根据录制的HTTP请求生成的Python代码，可以直接运行来验证请求逻辑。
+              包含JavaScript分析功能，帮助AI理解签名算法等复杂逻辑。
+            </Text>
+          </div>
+          <pre style={{ 
+            background: '#f5f5f5', 
+            padding: 16, 
+            borderRadius: 4, 
+            overflow: 'auto',
+            maxHeight: '500px',
+            fontSize: '13px',
+            lineHeight: '1.4'
+          }}>
+            {generatedCode || '// 正在生成代码...'}
+          </pre>
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              💡 提示：生成的代码包含完整的会话类、所有API请求方法、JavaScript调用栈分析等功能。
+              可以直接在Python环境中运行，便于AI分析和调试。
+            </Text>
+          </div>
+        </div>
       </Modal>
     </div>
   );

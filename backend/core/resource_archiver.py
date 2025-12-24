@@ -20,6 +20,7 @@ class ResourceArchiver:
         self,
         base_output_dir: Path,
         log_callback: Optional[Callable[[str], None]] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         self._log = log_callback or (lambda _msg: None)
 
@@ -27,7 +28,8 @@ class ResourceArchiver:
 
         self._start_time = datetime.now()
         timestamp = self._start_time.strftime("%Y%m%d_%H%M%S")
-        self._session_dir = base_output_dir / f"session_{timestamp}"
+        session_dir_name = session_id or f"session_{timestamp}"
+        self._session_dir = base_output_dir / session_dir_name
         self._responses_dir = self._session_dir / "responses"
         self._hooks_dir = self._session_dir / "hooks"
 
@@ -93,6 +95,36 @@ class ResourceArchiver:
                 if k.lower() == "content-type":
                     content_type = v.split(";")[0].strip()
                     break
+
+        # Content-Type 缺失时，尽可能从 URL 后缀推断
+        if not content_type:
+            try:
+                parsed = urlparse(record.url)
+                path_lower = (parsed.path or "").lower()
+                if path_lower.endswith(".js"):
+                    content_type = "application/javascript"
+                elif path_lower.endswith(".css"):
+                    content_type = "text/css"
+                elif path_lower.endswith(".json"):
+                    content_type = "application/json"
+                elif path_lower.endswith(".html") or path_lower.endswith(".htm"):
+                    content_type = "text/html"
+                elif path_lower.endswith(".png"):
+                    content_type = "image/png"
+                elif path_lower.endswith(".jpg") or path_lower.endswith(".jpeg"):
+                    content_type = "image/jpeg"
+                elif path_lower.endswith(".gif"):
+                    content_type = "image/gif"
+                elif path_lower.endswith(".webp"):
+                    content_type = "image/webp"
+                elif path_lower.endswith(".svg"):
+                    content_type = "image/svg+xml"
+                elif path_lower.endswith(".woff"):
+                    content_type = "font/woff"
+                elif path_lower.endswith(".woff2"):
+                    content_type = "font/woff2"
+            except Exception:
+                content_type = None
 
         record.content_type = content_type
 
@@ -492,7 +524,7 @@ class ResourceArchiver:
             timestamp = datetime.now().strftime("%H%M%S_%f")[:-3]  # 精确到毫秒
             
             # 根据事件类型选择存储目录和文件名
-            if event_type.startswith(('LOCALSTORAGE_', 'SESSIONSTORAGE_', 'INDEXEDDB_')):
+            if event_type in {"STORAGE_SNAPSHOT"} or event_type.startswith(("LOCALSTORAGE_", "SESSIONSTORAGE_", "INDEXEDDB_")):
                 file_path = self._storage_dir / f"{event_type.lower()}_{timestamp}.json"
                 
             elif event_type == 'USER_INTERACTION':
@@ -501,7 +533,7 @@ class ResourceArchiver:
             elif event_type in ['FORM_INPUT', 'FORM_SUBMIT']:
                 file_path = self._interactions_dir / f"form_{event_type.lower()}_{timestamp}.json"
                 
-            elif event_type in ['DOM_CHANGE', 'DOM_SNAPSHOT']:
+            elif event_type in {"DOM_FINAL"} or event_type in ['DOM_CHANGE', 'DOM_SNAPSHOT']:
                 file_path = self._dom_dir / f"dom_{event_type.lower()}_{timestamp}.json"
                 
             elif event_type in ['HISTORY_PUSH', 'HISTORY_REPLACE', 'HISTORY_POP']:
@@ -510,7 +542,7 @@ class ResourceArchiver:
             elif event_type == 'CONSOLE_OUTPUT':
                 file_path = self._browser_data_dir / f"console_{timestamp}.json"
                 
-            elif event_type in ['PERFORMANCE_NAVIGATION', 'PERFORMANCE_RESOURCE']:
+            elif event_type in {"PERFORMANCE_SNAPSHOT"} or event_type in ['PERFORMANCE_NAVIGATION', 'PERFORMANCE_RESOURCE']:
                 file_path = self._performance_dir / f"perf_{event_type.lower()}_{timestamp}.json"
                 
             elif event_type in ['PAGE_INFO', 'INITIAL_LOCALSTORAGE', 'INITIAL_SESSIONSTORAGE']:
