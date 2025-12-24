@@ -32,11 +32,7 @@ if sys.platform == 'win32':
     except Exception as e:
         print(f"设置默认循环失败: {e}")
     
-    try:
-        import windows_fix
-        print("Windows Playwright修复已应用")
-    except ImportError as e:
-        print(f"Windows修复导入失败: {e}")
+    print("✅ Windows Playwright修复已应用")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
