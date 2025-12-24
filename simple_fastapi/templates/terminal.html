@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qwen Code 终端</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .control-panel {
+            background: #2a2a2a;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid #444;
+            height: 50px;
+            box-sizing: border-box;
+        }
+        
+        .control-panel label {
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        .control-panel input[type="text"] {
+            background: #1a1a1a;
+            border: 1px solid #555;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 300px;
+        }
+        
+        .control-panel button {
+            background: #4a9eff;
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .control-panel button:hover {
+            background: #357abd;
+        }
+        
+        .control-panel button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .terminal-container {
+            width: 100vw;
+            height: calc(100vh - 50px);
+            position: relative;
+        }
+        
+        .terminal-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #1a1a1a;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4a9eff;
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #e74c3c;
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .retry-btn {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .retry-btn:hover {
+            background: #357abd;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <label>工作目录:</label>
+        <input type="text" id="workdir" placeholder="输入项目目录路径，例如: C:\Users\Administrator\Desktop\my-project" value="">
+        <button id="run-qwen-btn" onclick="runQwenInDirectory()">切换目录并运行 Qwen</button>
+    </div>
+    
+    <div class="terminal-container">
+        <div id="loading" class="loading">
+            <div>正在连接终端服务...</div>
+            <div style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
+                Node.js 终端服务: localhost:3000
+            </div>
+        </div>
+        
+        <div id="error" class="error">
+            <div>❌ 无法连接到终端服务</div>
+            <div style="margin: 10px 0; font-size: 14px;">
+                请确保 Node.js 终端服务正在端口 3000 运行
+            </div>
+            <button class="retry-btn" onclick="retryConnection()">重试连接</button>
+        </div>
+        
+        <iframe id="terminal-frame" class="terminal-frame" src="http://localhost:3000" style="display: none;"></iframe>
+    </div>
+
+    <script>
+        let loadTimeout;
+        let terminalReady = false;
+        let currentWorkDir = '';
+        
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('terminal-frame').style.display = 'none';
+        }
+        
+        function showError() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('terminal-frame').style.display = 'none';
+        }
+        
+        function showTerminal() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('terminal-frame').style.display = 'block';
+            terminalReady = true;
+            updateButtons();
+        }
+        
+        function updateButtons() {
+            const workdir = document.getElementById('workdir').value.trim();
+            const runQwenBtn = document.getElementById('run-qwen-btn');
+            
+            runQwenBtn.disabled = !terminalReady || !workdir;
+        }
+        
+        function runQwenInDirectory() {
+            const workdir = document.getElementById('workdir').value.trim();
+            if (!workdir || !terminalReady) return;
+            
+            // 先发送 Ctrl+C 取消当前运行的程序
+            sendCommandToTerminal('\x03');
+            
+            // 等待一下再切换目录
+            setTimeout(() => {
+                sendCommandToTerminal(`cd "${workdir}"`);
+                
+                // 再等待一下再运行qwen
+                setTimeout(() => {
+                    sendCommandToTerminal('qwen');
+                    console.log(`已切换到目录 ${workdir} 并启动 Qwen`);
+                }, 500);
+            }, 300);
+        }
+        
+        function sendCommandToTerminal(command) {
+            // 通过postMessage向iframe发送命令
+            const frame = document.getElementById('terminal-frame');
+            if (frame && frame.contentWindow) {
+                try {
+                    frame.contentWindow.postMessage({
+                        type: 'command',
+                        data: command + '\r'
+                    }, '*');
+                } catch (e) {
+                    console.log('无法发送命令到终端:', e);
+                }
+            }
+        }
+        
+        function loadTerminal() {
+            showLoading();
+            
+            const frame = document.getElementById('terminal-frame');
+            
+            // 清除之前的超时
+            if (loadTimeout) {
+                clearTimeout(loadTimeout);
+            }
+            
+            // 设置iframe加载事件
+            frame.onload = function() {
+                console.log('Terminal iframe loaded successfully');
+                clearTimeout(loadTimeout);
+                showTerminal();
+            };
+            
+            frame.onerror = function() {
+                console.log('Terminal iframe load error');
+                clearTimeout(loadTimeout);
+                showError();
+            };
+            
+            // 设置超时检查
+            loadTimeout = setTimeout(() => {
+                console.log('Terminal load timeout');
+                showError();
+            }, 5000);
+            
+            // 刷新iframe
+            frame.src = frame.src;
+        }
+        
+        function retryConnection() {
+            loadTerminal();
+        }
+        
+        // 页面加载时开始连接
+        window.addEventListener('load', function() {
+            // 等待1秒后开始加载，确保DOM准备好
+            setTimeout(loadTerminal, 1000);
+            
+            // 监听输入框变化
+            document.getElementById('workdir').addEventListener('input', updateButtons);
+        });
+        
+        // 检查服务是否可用
+        async function checkService() {
+            try {
+                const response = await fetch('http://localhost:3000/', {
+                    method: 'GET',
+                    mode: 'no-cors' // 避免CORS错误
+                });
+                return true;
+            } catch (error) {
+                console.log('Service check failed:', error);
+                return false;
+            }
+        }
+        
+        // 每5秒检查一次服务状态
+        setInterval(async () => {
+            const frame = document.getElementById('terminal-frame');
+            if (frame.style.display === 'none') {
+                // 如果终端未显示，检查服务是否恢复
+                const serviceAvailable = await checkService();
+                if (serviceAvailable) {
+                    loadTerminal();
+                }
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

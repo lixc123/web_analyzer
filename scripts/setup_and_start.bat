@@ -208,6 +208,23 @@ echo           启动所有服务
 echo ========================================
 echo.
 
+:: 启动Node.js终端服务
+echo [信息] 正在安装和启动Node.js终端服务...
+cd backend\terminal_service
+if not exist "node_modules" (
+    echo [信息] 安装Node.js终端服务依赖...
+    call npm install
+    if %errorlevel% neq 0 (
+        echo [警告] Node.js终端服务依赖安装失败，跳过终端服务
+        cd ..\..
+        goto skip_terminal
+    )
+)
+echo [信息] 启动Node.js终端服务 (端口 3001)...
+start "Terminal-Service" cmd /k "npm start"
+cd ..\..
+
+:skip_terminal
 :: 启动后端服务 (Windows ProactorEventLoop 优化版)
 echo [信息] 正在启动后端服务 (端口 %BACKEND_PORT%) - Windows优化版本...
 echo [信息] 使用Windows ProactorEventLoop解决Playwright异步子进程问题...
@@ -216,7 +233,7 @@ start "Backend-FastAPI-Windows" cmd /k "call venv\Scripts\activate.bat && python
 cd ..
 
 :: 等待后端启动
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 :: 启动前端服务
 echo [信息] 正在启动前端服务 (端口 %FRONTEND_PORT%)...
@@ -263,7 +280,7 @@ echo          启动完成总结
 echo ========================================
 echo ✓ 后端服务已启动 (FastAPI + Uvicorn)
 echo ✓ 前端服务已启动 (Vite开发服务器)
-echo ✓ AI功能已移除，专注于网络流量分析
+echo ✓ Node.js终端服务已启动 (Qwen助手集成)
 echo ✓ 浏览器已自动打开应用
 echo.
 echo Service management:

@@ -44,6 +44,21 @@ if %errorlevel% neq 0 (
     echo [WARNING] Browser check failed. Run scripts\check_and_install_browsers.bat for full check
 )
 
+:: 启动Node.js终端服务
+echo [信息] 检查Node.js终端服务...
+cd backend\terminal_service
+if exist "package.json" (
+    if not exist "node_modules" (
+        echo [信息] 安装Node.js终端服务依赖...
+        call npm install --silent >nul 2>&1
+    )
+    echo [信息] 启动Node.js终端服务 (端口 3001)...
+    start "Terminal-Service" cmd /k "npm start"
+) else (
+    echo [警告] 未发现terminal_service，跳过终端服务启动
+)
+cd ..\..
+
 echo [信息] 启动后端服务 - Windows优化版本...
 echo [信息] 使用Windows ProactorEventLoop解决Playwright异步子进程问题...
 cd backend
@@ -51,7 +66,7 @@ start "Backend-FastAPI-Windows" cmd /k "call venv\Scripts\activate.bat && python
 cd ..
 
 echo [信息] 等待后端启动...
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 echo [信息] 检查前端构建状态...
 cd frontend
@@ -108,7 +123,7 @@ echo          启动完成总结
 echo ========================================
 echo [✓] Backend service started (FastAPI + Uvicorn)
 echo [✓] Frontend service started (Vite dev server)
-echo [✓] AI功能已移除，专注于网络流量分析
+echo [✓] Node.js Terminal service started (Qwen integration)
 echo [✓] Browser opened automatically
 echo.
 echo Service Management:

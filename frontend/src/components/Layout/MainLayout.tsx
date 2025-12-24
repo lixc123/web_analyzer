@@ -18,6 +18,7 @@ import {
   BugOutlined,
   BarChartOutlined,
   RobotOutlined,
+  CodeOutlined,
   SettingOutlined,
   UserOutlined,
   LogoutOutlined,
@@ -71,6 +72,12 @@ const MainLayout: React.FC = () => {
       icon: <BarChartOutlined />,
       label: '数据分析',
       title: '流量数据分析'
+    },
+    {
+      key: '/terminal',
+      icon: <CodeOutlined />,
+      label: 'Qwen终端',
+      title: 'Qwen代码助手终端'
     },
     {
       key: '/settings',
