@@ -16,23 +16,19 @@ if sys.platform == 'win32':
     try:
         current_loop = asyncio.get_running_loop()
         current_loop_type = type(current_loop).__name__
-        print(f"发现现有循环类型: {current_loop_type}")
         
         if current_loop_type != 'ProactorEventLoop':
-            print("WARNING: 当前循环不是ProactorEventLoop，需要Uvicorn启动时使用正确策略")
+            pass  # 策略已设置，将在启动时生效
     except RuntimeError:
-        # 没有运行的循环，这很好
-        print("OK: 没有运行中的事件循环，策略设置将生效")
+        # 没有运行的循环，这是正常的
+        pass
     
     # 3. 创建并设置ProactorEventLoop为默认循环
     try:
         loop = asyncio.ProactorEventLoop()
         asyncio.set_event_loop(loop)
-        print("FIX: 强制设置ProactorEventLoop为默认循环")
     except Exception as e:
-        print(f"设置默认循环失败: {e}")
-    
-    print("OK: Windows Playwright修复已应用")
+        logger.error(f"设置默认循环失败: {e}")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware

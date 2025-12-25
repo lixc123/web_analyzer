@@ -271,7 +271,7 @@ const CrawlerPage: React.FC = () => {
 
   const handleStart = async () => {
     if (startMutation.isPending) {
-      console.log('正在提交中，防止重复提交')
+      // 防止重复提交
       return
     }
     

@@ -136,9 +136,8 @@ export const ProjectInitializer: React.FC<ProjectInitializerProps> = ({
       const agents = globalConfig.agents?.library || [];
       setAvailableAgents(agents);
 
-      // 加载MCP工具
-      const tools = globalConfig.mcp?.tools || [];
-      setAvailableTools(tools);
+      // MCP工具已移除
+      setAvailableTools([]);
     } catch (error) {
       console.error('加载资源失败:', error);
     }

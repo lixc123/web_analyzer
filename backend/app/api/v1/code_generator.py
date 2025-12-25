@@ -12,6 +12,9 @@ import os
 import json
 from pathlib import Path
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 from core.code_generator import generate_code_from_session, write_session_summary
 
@@ -324,7 +327,7 @@ async def _generate_code_background(session_path: Path, session_name: str):
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(generated_code)
         
-        print(f"[OK] 后台生成代码完成: {output_path}")
+        logger.info(f"后台生成代码完成: {output_path}")
         
     except Exception as e:
-        print(f"[FAIL] 后台生成代码失败 {session_name}: {e}")
+        logger.error(f"后台生成代码失败 {session_name}: {e}")

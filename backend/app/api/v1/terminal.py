@@ -52,7 +52,7 @@ async def get_crawler_sessions() -> List[Dict[str, Any]]:
                             "type": "crawler_session",
                         })
         except (PermissionError, OSError) as e:
-            print(f"扫描会话目录失败: {e}")
+            logger.error(f"扫描会话目录失败: {e}")
     
     # 如果没有找到会话，添加一些默认目录
     if not sessions:
@@ -274,7 +274,7 @@ async def terminal_page() -> HTMLResponse:
                             path: sessionPath
                         }, '*');
                     } catch (e) {
-                        console.log('无法发送切换会话到终端:', e);
+                        // 发送切换会话失败
                     }
                 }
 
@@ -292,7 +292,7 @@ async def terminal_page() -> HTMLResponse:
                             data: command === '\\x03' ? command : command + '\\r'
                         }, '*');
                     } catch (e) {
-                        console.log('无法发送命令到终端:', e);
+                        // 发送命令失败
                     }
                 }
             }
@@ -332,19 +332,19 @@ async def terminal_page() -> HTMLResponse:
                 }
                 
                 frame.onload = function() {
-                    console.log('Terminal iframe loaded successfully');
+                    // Terminal iframe loaded successfully
                     clearTimeout(loadTimeout);
                     showTerminal();
                 };
                 
                 frame.onerror = function() {
-                    console.log('Terminal iframe load error');
+                    // Terminal iframe load error
                     clearTimeout(loadTimeout);
                     showError();
                 };
                 
                 loadTimeout = setTimeout(() => {
-                    console.log('Terminal load timeout');
+                    // Terminal load timeout
                     showError();
                 }, 5000);
                 

@@ -32,7 +32,6 @@ import {
   SecurityScanOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
-import MCPManager from '../MCP/MCPManager';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -645,7 +644,13 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                 MCP工具
               </Space>
             ),
-            children: <MCPManager />
+            children: (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                <ApiOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+                <p>MCP工具功能已移除</p>
+                <p>此应用现在专注于网络流量录制和分析</p>
+              </div>
+            )
           },
           {
             key: 'agents',

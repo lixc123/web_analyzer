@@ -46,7 +46,7 @@ export const useWebSocket = (clientId = 'default-client') => {
       };
       
       const wsUrl = getWebSocketURL()
-      console.log('尝试连接WebSocket:', wsUrl)
+      // 连接WebSocket
       const ws = new WebSocket(wsUrl)
 
       // 设置连接超时
@@ -59,7 +59,7 @@ export const useWebSocket = (clientId = 'default-client') => {
 
       ws.onopen = () => {
         clearTimeout(connectionTimeout)
-        console.log('WebSocket连接已建立')
+        // WebSocket连接已建立
         setWsConnected(true)
         reconnectAttempts.current = 0
         

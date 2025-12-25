@@ -25,28 +25,6 @@ export interface CommandArg {
 
 // qwen-code命令映射到Web版本 - 完整增强版
 const WEB_COMMANDS: Command[] = [
-  // MCP工具管理命令 - 极高优先级
-  {
-    name: 'mcp',
-    description: 'MCP服务器和工具管理',
-    category: 'system',
-    args: [
-      { name: 'action', type: 'select', options: ['list', 'connect', 'disconnect', 'status'], required: false },
-      { name: 'server_id', type: 'string', description: '服务器ID' },
-    ],
-    examples: ['/mcp', '/mcp list', '/mcp connect filesystem', '/mcp status'],
-  },
-  {
-    name: 'tools',
-    description: '显示和管理MCP工具',
-    category: 'system',
-    args: [
-      { name: 'action', type: 'select', options: ['list', 'execute', 'help'], required: false },
-      { name: 'tool_name', type: 'string', description: '工具名称' },
-    ],
-    examples: ['/tools', '/tools list', '/tools execute read_file', '/tools help'],
-  },
-
   // 智能体管理命令 - 高优先级
   {
     name: 'agents',
@@ -225,7 +203,7 @@ const WEB_COMMANDS: Command[] = [
     args: [
       { name: 'command', type: 'string', description: '特定命令名称' },
     ],
-    examples: ['/help', '/help mcp', '/help agents', '/?'],
+    examples: ['/help', '/help agents', '/help model', '/?'],
   },
   {
     name: 'docs',

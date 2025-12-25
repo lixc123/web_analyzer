@@ -10,6 +10,9 @@ import aiofiles
 from pathlib import Path
 from .config import settings
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 创建数据库引擎
 # SQLite配置为线程安全
@@ -63,7 +66,7 @@ def init_database():
     # 创建数据表
     create_tables()
     
-    print(f"数据库初始化完成: {settings.database_url}")
+    logger.info(f"数据库初始化完成: {settings.database_url}")
 
 # 混合存储策略支持
 class HybridStorage:
@@ -221,7 +224,7 @@ class HybridStorage:
                 HybridStorage.save_session_requests(session_id, session_requests)
                 migrated_sessions.append(session_id)
             except Exception as e:
-                print(f"迁移会话 {session_id} 失败: {e}")
+                logger.error(f"迁移会话 {session_id} 失败: {e}")
         
         # 备份原文件
         backup_path = requests_file + '.backup'

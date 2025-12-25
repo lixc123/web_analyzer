@@ -303,7 +303,7 @@ class RecorderService:
         config = session_data["config"]
         recorder = NetworkRecorder(
             browser_manager=browser_manager,
-            log_callback=lambda msg: print(f" [录制] {msg}"),
+            log_callback=lambda msg: logger.info(f"录制: {msg}"),
             archiver=archiver,
             config=config  # 传递用户配置
         )

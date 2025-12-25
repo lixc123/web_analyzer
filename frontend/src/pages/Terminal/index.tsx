@@ -97,15 +97,12 @@ const Terminal: React.FC = () => {
     if (!iframe) return;
 
     const handleLoad = () => {
-      console.log('Terminal iframe loaded');
       setLoading(false);
       setTerminalReady(true);
       setStatus('终端已连接');
-      setError(null);
     };
 
     const handleError = () => {
-      console.log('Terminal iframe load error');
       setLoading(false);
       setTerminalReady(false);
       setStatus('连接失败');
