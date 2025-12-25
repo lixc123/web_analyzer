@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useLayoutEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Layout,
@@ -37,6 +37,15 @@ const MainLayout: React.FC = () => {
   const location = useLocation()
   const [fullscreen, setFullscreen] = useState(false)
 
+  useLayoutEffect(() => {
+    const el = document.getElementById('main-content-scroll')
+    if (el) {
+      el.scrollTop = 0
+      el.scrollLeft = 0
+    }
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
   const { isAuthenticated, user, logout } = useAuth()
   
   const {
@@ -74,8 +83,8 @@ const MainLayout: React.FC = () => {
     {
       key: '/terminal',
       icon: <CodeOutlined />,
-      label: 'Qwen终端',
-      title: 'Qwen代码助手终端'
+      label: 'AI终端',
+      title: 'AI分析助手'
     },
     {
       key: '/settings',
@@ -174,14 +183,14 @@ const MainLayout: React.FC = () => {
         >
           {!sidebarCollapsed ? (
             <Title level={4} style={{ margin: 0, color: token.colorPrimary }}>
-              Web Analyzer
+              AI分析平台
             </Title>
           ) : (
             <Avatar 
               size="large" 
               style={{ backgroundColor: token.colorPrimary }}
             >
-              WA
+              AI
             </Avatar>
           )}
         </div>
@@ -259,7 +268,7 @@ const MainLayout: React.FC = () => {
                   whiteSpace: 'nowrap',
                 }}
               >
-                现代化网络流量分析平台
+                智能化AI分析平台
               </Text>
             </div>
           </Space>
@@ -312,6 +321,7 @@ const MainLayout: React.FC = () => {
 
         {/* 主内容区 */}
         <Content
+          id="main-content-scroll"
           style={{
             margin: '16px',
             padding: 0,

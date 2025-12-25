@@ -15,6 +15,8 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 from models.request_record import RequestRecord
 from .js_converter_simple import enhance_code_with_js_analysis
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 
 class PythonCodeGenerator:
@@ -43,6 +45,91 @@ class PythonCodeGenerator:
         code_parts.append(self._generate_session_class(records))
         
         # 生成主函数
+        code_parts.append(self._generate_main_function(records))
+        
+        # 组装最终代码
+        final_code = "\n".join([
+            "\n".join(sorted(self.imports)),
+            "",
+            "\n".join(self.helper_functions),
+            "",
+            *code_parts
+        ])
+        
+        return final_code
+    
+    async def generate_session_code_async(self, records: List[RequestRecord], session_path: Path) -> str:
+        """异步生成整个会话的Python代码"""
+        if not records:
+            return "# 没有找到HTTP请求记录\nprint('No requests found')\n"
+            
+        self.session_name = session_path.name
+        self.imports = {"import requests", "import json", "from datetime import datetime"}
+        self.helper_functions = set()
+        
+        # 使用线程池并发处理请求方法生成
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # 并发生成所有请求方法
+            tasks = []
+            for i, record in enumerate(records):
+                if record.resource_type in ['xhr', 'fetch']:  # 只转换API请求
+                    task = loop.run_in_executor(
+                        executor, 
+                        self._generate_request_method, 
+                        record, i
+                    )
+                    tasks.append(task)
+            
+            method_codes = await asyncio.gather(*tasks)
+        
+        # 组装代码
+        code_parts = []
+        code_parts.append(self._generate_header_comment(records))
+        
+        # 构建会话类
+        class_code = [
+            "class WebSession:",
+            '    """Web会话类，包含录制的所有HTTP请求"""',
+            "    ",
+            "    def __init__(self):",
+            "        self.session = requests.Session()",
+            "        self.base_headers = {}",
+            "        self.results = []",
+            "        ",
+        ]
+        
+        # 添加生成的方法
+        for method_code in method_codes:
+            if method_code:
+                class_code.extend(method_code)
+                class_code.append("")
+        
+        # 添加执行所有请求的方法
+        api_count = len([r for r in records if r.resource_type in ['xhr', 'fetch']])
+        class_code.extend([
+            "    def run_all_requests(self):",
+            '    """执行所有录制的请求"""',
+            f"        print(f'开始执行 {api_count} 个API请求...')",
+            "        ",
+            "        for method_name in self._get_request_methods():",
+            "            try:",
+            "                print(f'执行: {method_name}')",
+            "                method = getattr(self, method_name)",
+            "                result = method()",
+            "                self.results.append({'method': method_name, 'result': result, 'success': True})",
+            "            except Exception as e:",
+            "                print(f'[FAIL] {method_name} 执行失败: {e}')",
+            "                self.results.append({'method': method_name, 'error': str(e), 'success': False})",
+            "        ",
+            "        return self.results",
+            "    ",
+            "    def _get_request_methods(self):",
+            '    """获取所有请求方法名"""',
+            f"        return {[f'request_{i}' for i, r in enumerate(records) if r.resource_type in ['xhr', 'fetch']]}",
+        ])
+        
+        code_parts.append("\n".join(class_code))
         code_parts.append(self._generate_main_function(records))
         
         # 组装最终代码

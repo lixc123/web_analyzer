@@ -1,10 +1,12 @@
 import asyncio
 import json
-import logging
-import uuid
-from datetime import datetime
-from typing import Dict, List, Optional, Any
 import hashlib
+import logging
+from collections import defaultdict, Counter
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 # 导入现有分析逻辑模块 (零修改复用)
 import sys
@@ -136,6 +138,12 @@ class AnalysisService:
         
         # 自定义规则存储
         self.custom_rules: Dict[str, Dict] = {}
+        
+        # 异步处理的线程池
+        self._executor = ThreadPoolExecutor(max_workers=4)
+        
+        # 数据预处理缓存
+        self._preprocessing_cache: Dict[str, Any] = {}
     
     async def analyze(self, session_id: Optional[str] = None, 
                      requests_data: Optional[List[Dict]] = None, 
@@ -184,36 +192,56 @@ class AnalysisService:
                 elif isinstance(req_data, RequestRecord):
                     request_records.append(req_data)
             
-            # 执行不同类型的分析
+            # 使用并发处理执行不同类型的分析
             results = {}
             suspicious_requests = []
             
+            # 创建并发分析任务
+            tasks = []
+            
             if analysis_type in ["all", "entropy"]:
-                # 使用现有熵值分析算法 (零修改)
-                entropy_results = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.analyzer.analyze_entropy,
-                    request_records,
-                    config.get("min_entropy", 4.0)
-                )
+                tasks.append(asyncio.create_task(
+                    asyncio.get_event_loop().run_in_executor(
+                        self._executor,
+                        self.analyzer.analyze_entropy,
+                        request_records,
+                        config.get("min_entropy", 4.0)
+                    )
+                ))
+            else:
+                tasks.append(asyncio.create_task(asyncio.sleep(0)))  # 占位任务
+            
+            if analysis_type in ["all", "sensitive_params"]:
+                tasks.append(asyncio.create_task(
+                    asyncio.get_event_loop().run_in_executor(
+                        self._executor,
+                        self.analyzer.detect_sensitive_parameters,
+                        request_records,
+                        config.get("sensitive_keywords", [])
+                    )
+                ))
+            else:
+                tasks.append(asyncio.create_task(asyncio.sleep(0)))  # 占位任务
+            
+            # 等待所有分析任务完成
+            analysis_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 处理熵值分析结果
+            if analysis_type in ["all", "entropy"] and not isinstance(analysis_results[0], Exception):
+                entropy_results = analysis_results[0]
                 results["entropy"] = entropy_results
                 suspicious_requests.extend(entropy_results.get("high_entropy_requests", []))
             
-            if analysis_type in ["all", "sensitive_params"]:
-                # 使用现有敏感参数检测 (零修改)
-                sensitive_results = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.analyzer.detect_sensitive_parameters,
-                    request_records,
-                    config.get("sensitive_keywords", [])
-                )
+            # 处理敏感参数分析结果
+            if analysis_type in ["all", "sensitive_params"] and not isinstance(analysis_results[1], Exception):
+                sensitive_results = analysis_results[1]
                 results["sensitive_params"] = sensitive_results
                 suspicious_requests.extend(sensitive_results.get("suspicious_requests", []))
             
             if analysis_type in ["all", "encryption_keywords"]:
                 # 使用现有加密关键词识别 (零修改)
                 encryption_results = await asyncio.get_event_loop().run_in_executor(
-                    None,
+                    self._executor,
                     self.analyzer.identify_encryption_keywords,
                     request_records
                 )
@@ -463,23 +491,22 @@ class AnalysisService:
             raise ValueError(f"不支持的导出格式: {format}")
     
     async def _load_session_requests(self, session_id: str) -> List[Dict]:
-        """从存储中加载会话请求数据"""
+        """从存储中加载会话请求数据（异步优化版本）"""
         try:
-            # 优先从session级别存储加载
-            session_requests = HybridStorage.load_session_requests(session_id)
+            # 优先从session级别存储异步加载
+            session_requests = await HybridStorage.load_session_requests_async(session_id)
             
             if session_requests:
                 logger.info(f"从session级别存储加载了 {len(session_requests)} 个请求")
                 return session_requests
             
-            # 向后兼容：如果session级别没有数据，尝试从全局requests.json加载
+            # 向后兼容：如果session级别没有数据，尝试从全局requests.json异步加载
             requests_file = HybridStorage.get_requests_json_path()
             if not os.path.exists(requests_file):
                 logger.warning(f"会话 {session_id} 没有找到任何请求数据")
                 return []
             
-            with open(requests_file, 'r', encoding='utf-8') as f:
-                all_requests = json.load(f)
+            all_requests = await HybridStorage.load_json_data_async(requests_file)
             
             # 过滤指定会话的请求
             session_requests = [

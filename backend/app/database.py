@@ -2,6 +2,12 @@ from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+import aiofiles
+from pathlib import Path
 from .config import settings
 import os
 
@@ -102,7 +108,7 @@ class HybridStorage:
     
     @staticmethod
     def load_json_data(file_path):
-        """加载JSON数据"""
+        """加载JSON数据（同步版本，保持向后兼容）"""
         if not os.path.exists(file_path):
             return []
         try:
@@ -114,12 +120,35 @@ class HybridStorage:
     
     @staticmethod
     def save_json_data(file_path, data):
-        """保存JSON数据"""
+        """保存JSON数据（同步版本，保持向后兼容）"""
         import json
         # 确保目录存在
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+    
+    @staticmethod
+    async def load_json_data_async(file_path):
+        """异步加载JSON数据"""
+        if not os.path.exists(file_path):
+            return []
+        try:
+            import json
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                return json.loads(content)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return []
+    
+    @staticmethod
+    async def save_json_data_async(file_path, data):
+        """异步保存JSON数据"""
+        import json
+        # 确保目录存在
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        content = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+        async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+            await f.write(content)
     
     @staticmethod
     def get_session_requests_path(session_id: str):
@@ -140,15 +169,27 @@ class HybridStorage:
     
     @staticmethod
     def load_session_requests(session_id: str):
-        """加载特定会话的请求数据"""
+        """加载特定会话的请求数据（同步版本）"""
         json_path = HybridStorage.get_session_requests_path(session_id)
         return HybridStorage.load_json_data(json_path)
     
     @staticmethod
     def save_session_requests(session_id: str, requests_data):
-        """保存特定会话的请求数据"""
+        """保存特定会话的请求数据（同步版本）"""
         json_path = HybridStorage.ensure_session_requests_exists(session_id)
         HybridStorage.save_json_data(json_path, requests_data)
+    
+    @staticmethod
+    async def load_session_requests_async(session_id: str):
+        """异步加载特定会话的请求数据"""
+        json_path = HybridStorage.get_session_requests_path(session_id)
+        return await HybridStorage.load_json_data_async(json_path)
+    
+    @staticmethod
+    async def save_session_requests_async(session_id: str, requests_data):
+        """异步保存特定会话的请求数据"""
+        json_path = HybridStorage.ensure_session_requests_exists(session_id)
+        await HybridStorage.save_json_data_async(json_path, requests_data)
     
     @staticmethod
     def migrate_requests_to_sessions():
@@ -188,3 +229,63 @@ class HybridStorage:
         shutil.copy2(requests_file, backup_path)
         
         return f"成功迁移 {len(migrated_sessions)} 个会话的数据。原文件已备份至 {backup_path}"
+
+
+class AsyncHybridStorage:
+    """异步版本的混合存储策略，用于高性能场景"""
+    
+    # 线程池执行器，用于处理CPU密集型操作
+    _executor = ThreadPoolExecutor(max_workers=4)
+    
+    @classmethod
+    async def batch_load_session_requests(cls, session_ids: list) -> dict:
+        """批量异步加载多个会话的请求数据"""
+        tasks = []
+        for session_id in session_ids:
+            task = HybridStorage.load_session_requests_async(session_id)
+            tasks.append(asyncio.create_task(task))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        session_data = {}
+        for session_id, result in zip(session_ids, results):
+            if isinstance(result, Exception):
+                session_data[session_id] = []
+            else:
+                session_data[session_id] = result
+        
+        return session_data
+    
+    @classmethod
+    async def batch_save_session_requests(cls, session_data: dict):
+        """批量异步保存多个会话的请求数据"""
+        tasks = []
+        for session_id, requests_data in session_data.items():
+            task = HybridStorage.save_session_requests_async(session_id, requests_data)
+            tasks.append(asyncio.create_task(task))
+        
+        await asyncio.gather(*tasks, return_exceptions=True)
+    
+    @classmethod
+    async def parallel_file_operations(cls, operations: list):
+        """并行执行多个文件操作"""
+        loop = asyncio.get_event_loop()
+        
+        tasks = []
+        for operation in operations:
+            if operation['type'] == 'load':
+                task = loop.run_in_executor(
+                    cls._executor, 
+                    HybridStorage.load_json_data, 
+                    operation['path']
+                )
+            elif operation['type'] == 'save':
+                task = loop.run_in_executor(
+                    cls._executor, 
+                    HybridStorage.save_json_data, 
+                    operation['path'], 
+                    operation['data']
+                )
+            tasks.append(task)
+        
+        return await asyncio.gather(*tasks, return_exceptions=True)

@@ -1,8 +1,10 @@
+import asyncio
 import hashlib
 import json
 import os
 import re
 import subprocess
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -257,7 +259,15 @@ class ResourceArchiver:
         """JS 脚本目录。"""
         return self._scripts_dir
 
-    async def save_js_resources(self, page: Any) -> List[str]:
+    async def save_js_resources(
+        self,
+        page: Any,
+        max_urls: int = 80,
+        max_concurrency: int = 3,
+        per_url_timeout_seconds: float = 3.0,
+        time_budget_seconds: float = 15.0,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> List[str]:
         """主动抓取并保存页面所有 JS 资源。
         
         通过 JavaScript 在页面中获取所有 <script> 标签的 src，
@@ -271,6 +281,7 @@ class ResourceArchiver:
         """
         saved_paths: List[str] = []
         saved_urls: Set[str] = set()
+        start_ts = time.monotonic()
         
         try:
             # 获取页面上所有脚本 URL
@@ -295,37 +306,72 @@ class ResourceArchiver:
             """)
             
             self._log(f"发现 {len(script_urls)} 个 JS 资源")
-            
+
+            filtered_urls: List[str] = []
             for url in script_urls:
+                if len(filtered_urls) >= max_urls:
+                    break
                 if url in saved_urls:
                     continue
-                    
-                # 跳过 data: URL 和 blob: URL
                 if url.startswith("data:") or url.startswith("blob:"):
                     continue
-                
-                try:
-                    # 使用 page.evaluate 通过 fetch 获取内容
-                    content = await page.evaluate("""
-                        async (url) => {
-                            try {
-                                const resp = await fetch(url);
-                                if (!resp.ok) return null;
-                                return await resp.text();
-                            } catch (e) {
-                                return null;
-                            }
-                        }
-                    """, url)
-                    
-                    if content:
-                        rel_path = self._save_js_content(url, content)
-                        if rel_path:
-                            saved_paths.append(rel_path)
-                            saved_urls.add(url)
-                            
-                except Exception as e:
-                    self._log(f"下载 JS 失败: {url[:60]}... - {e}")
+                saved_urls.add(url)
+                filtered_urls.append(url)
+
+            total = len(filtered_urls)
+            if total == 0:
+                return []
+
+            sem = asyncio.Semaphore(max(1, int(max_concurrency)))
+            timeout_ms = max(100, int(per_url_timeout_seconds * 1000))
+
+            async def _fetch_and_save(url: str) -> tuple[str, Optional[str]]:
+                async with sem:
+                    if (time.monotonic() - start_ts) > time_budget_seconds:
+                        return url, None
+
+                    try:
+                        content = await asyncio.wait_for(
+                            page.evaluate(
+                                """async ({ url, timeoutMs }) => {
+                                    try {
+                                        const controller = new AbortController();
+                                        const timer = setTimeout(() => controller.abort(), timeoutMs);
+                                        const resp = await fetch(url, { signal: controller.signal });
+                                        clearTimeout(timer);
+                                        if (!resp || !resp.ok) return null;
+                                        return await resp.text();
+                                    } catch (e) {
+                                        return null;
+                                    }
+                                }""",
+                                {"url": url, "timeoutMs": timeout_ms},
+                            ),
+                            timeout=per_url_timeout_seconds + 1.0,
+                        )
+                    except Exception:
+                        return url, None
+
+                    if not content:
+                        return url, None
+
+                    rel_path = await asyncio.to_thread(self._save_js_content, url, content)
+                    return url, rel_path
+
+            tasks = [asyncio.create_task(_fetch_and_save(url)) for url in filtered_urls]
+            done_count = 0
+            for fut in asyncio.as_completed(tasks):
+                url, rel_path = await fut
+                done_count += 1
+                if progress_callback is not None:
+                    try:
+                        progress_callback(done_count, total, url)
+                    except Exception:
+                        pass
+                if rel_path:
+                    saved_paths.append(rel_path)
+                if (time.monotonic() - start_ts) > time_budget_seconds:
+                    break
                     
         except Exception as exc:
             self._log(f"获取 JS 资源列表失败: {exc}")
@@ -386,7 +432,12 @@ class ResourceArchiver:
             self._log(f"保存 JS 内容失败: {exc}")
             return None
 
-    def beautify_js_files(self, use_builtin: bool = True) -> int:
+    def beautify_js_files(
+        self,
+        use_builtin: bool = True,
+        max_files: Optional[int] = None,
+        time_budget_seconds: Optional[float] = None,
+    ) -> int:
         """格式化 scripts 目录下的所有 JS 文件。
         
         优先使用内置的简单格式化，如果安装了 js-beautify 则可以使用外部工具。
@@ -398,11 +449,16 @@ class ResourceArchiver:
             成功格式化的文件数量
         """
         js_files = list(self._scripts_dir.glob("*.js"))
+        if max_files is not None:
+            js_files = js_files[: max(0, int(max_files))]
         success_count = 0
+        start_ts = time.monotonic()
         
         self._log(f"开始格式化 {len(js_files)} 个 JS 文件...")
         
         for js_path in js_files:
+            if time_budget_seconds is not None and (time.monotonic() - start_ts) > float(time_budget_seconds):
+                break
             try:
                 if use_builtin:
                     if self._beautify_js_builtin(js_path):

@@ -86,9 +86,9 @@ async def stop_crawler(session_id: str, db: Session = Depends(get_db)):
     """停止爬虫任务"""
     try:
         recorder_service = get_recorder_service()
-        await recorder_service.stop_recording(session_id)
+        await recorder_service.stop_recording_background(session_id)
         
-        return {"session_id": session_id, "status": "stopped", "message": "爬虫任务已停止"}
+        return {"session_id": session_id, "status": "stopping", "message": "停止请求已提交，正在收尾"}
         
     except Exception as e:
         logger.error(f"停止爬虫失败: {e}")

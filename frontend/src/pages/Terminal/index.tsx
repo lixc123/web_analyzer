@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Select, Button, message, Spin, Alert } from 'antd';
-import { PlayCircleOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Card, Select, Button, message, Spin, Alert, Space, Typography } from 'antd';
+import { PlayCircleOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
+const { Text } = Typography;
 
 interface Session {
   name: string;
@@ -11,14 +12,51 @@ interface Session {
   type: string;
 }
 
+interface AIModel {
+  key: string;
+  name: string;
+  description: string;
+  command: string;
+  icon?: string;
+}
+
 const Terminal: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>('qwen');
   const [loading, setLoading] = useState(true);
   const [terminalReady, setTerminalReady] = useState(false);
   const [status, setStatus] = useState('正在连接...');
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 支持的AI模型配置
+  const aiModels: AIModel[] = [
+    {
+      key: 'qwen',
+      name: 'Qwen',
+      description: '通义千问 - 阿里云大语言模型',
+      command: 'qwen'
+    },
+    {
+      key: 'codex',
+      name: 'Codex',
+      description: 'OpenAI Codex - 专业代码生成模型',
+      command: 'codex'
+    },
+    {
+      key: 'claude',
+      name: 'Claude',
+      description: 'Anthropic Claude - 安全可靠的AI助手',
+      command: 'claude'
+    },
+    {
+      key: 'gemini',
+      name: 'Gemini',
+      description: 'Google Gemini - 多模态AI模型',
+      command: 'gemini'
+    }
+  ];
 
   // 加载会话列表
   const loadSessions = async () => {
@@ -95,23 +133,26 @@ const Terminal: React.FC = () => {
     iframe.src = 'http://localhost:3001';
   };
 
-  // 切换会话
+  // 切换会话和AI模型
   const switchToSession = () => {
     if (!selectedSession || !terminalReady) return;
 
-    setStatus('正在切换会话...');
-    message.info(`正在切换到会话: ${selectedSession}`);
+    const currentModel = aiModels.find(m => m.key === selectedModel);
+    setStatus(`正在切换会话并启动${currentModel?.name}...`);
+    message.info(`正在切换到会话: ${selectedSession}, 使用模型: ${currentModel?.name}`);
 
     // 通过postMessage发送会话切换命令到iframe
     if (iframeRef.current?.contentWindow) {
       try {
         iframeRef.current.contentWindow.postMessage({
           type: 'switch-session',
-          path: selectedSession
+          path: selectedSession,
+          aiModel: selectedModel,
+          aiCommand: currentModel?.command || 'qwen'
         }, '*');
         
         setTimeout(() => {
-          setStatus(`已切换到: ${sessions.find(s => s.path === selectedSession)?.name || selectedSession}`);
+          setStatus(`已切换到: ${sessions.find(s => s.path === selectedSession)?.name || selectedSession} (${currentModel?.name})`);
         }, 2000);
       } catch (err) {
         console.error('发送切换命令失败:', err);
@@ -159,7 +200,7 @@ const Terminal: React.FC = () => {
   }, [terminalReady]);
 
   return (
-    <div className="terminal-page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="terminal-page" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* 控制面板 */}
       <Card 
         style={{ 
@@ -168,69 +209,87 @@ const Terminal: React.FC = () => {
           borderBottom: '1px solid #d9d9d9',
           backgroundColor: '#fafafa'
         }}
-        bodyStyle={{ padding: '12px 24px' }}
+        bodyStyle={{ padding: '12px 16px' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ minWidth: '80px', fontWeight: 500 }}>选择会话:</span>
-          
-          <Select
-            value={selectedSession}
-            onChange={setSelectedSession}
-            style={{ minWidth: '500px' }}
-            placeholder="搜索或选择爬虫会话..."
-            loading={sessions.length === 0}
-            showSearch
-            filterOption={(input, option) => {
-              const session = sessions.find(s => s.path === option?.value);
-              if (!session) return false;
-              return (
-                session.name.toLowerCase().includes(input.toLowerCase()) ||
-                session.description.toLowerCase().includes(input.toLowerCase()) ||
-                session.path.toLowerCase().includes(input.toLowerCase())
-              );
-            }}
-            optionLabelProp="label"
-          >
-            {sessions.map((session) => (
-              <Option 
-                key={session.path} 
-                value={session.path}
-                label={session.name}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap' }}>
+          <Space size="middle" align="start">
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: '4px' }}>AI模型:</Text>
+              <Select
+                value={selectedModel}
+                onChange={setSelectedModel}
+                style={{ minWidth: '200px' }}
+                placeholder="选择AI模型"
+                size="middle"
               >
-                <div>
-                  <div style={{ fontWeight: 'bold', color: session.type === 'crawler_session' ? '#52c41a' : '#666' }}>
-                    {session.name}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
-                    {session.description}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>
-                    {session.path}
-                  </div>
-                </div>
-              </Option>
-            ))}
-          </Select>
+                {aiModels.map((model) => (
+                  <Option key={model.key} value={model.key}>
+                    <div style={{ fontWeight: 600, color: '#1890ff' }}>
+                      <RobotOutlined /> {model.name}
+                    </div>
+                  </Option>
+                ))}
+              </Select>
+            </div>
+            
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: '4px' }}>选择会话:</Text>
+          
+              <Select
+                value={selectedSession}
+                onChange={setSelectedSession}
+                style={{ minWidth: '400px' }}
+                placeholder="搜索或选择爬虫会话..."
+                loading={sessions.length === 0}
+                showSearch
+                size="middle"
+                filterOption={(input, option) => {
+                  const session = sessions.find(s => s.path === option?.value);
+                  if (!session) return false;
+                  return (
+                    session.name.toLowerCase().includes(input.toLowerCase()) ||
+                    session.description.toLowerCase().includes(input.toLowerCase()) ||
+                    session.path.toLowerCase().includes(input.toLowerCase())
+                  );
+                }}
+                optionLabelProp="label"
+              >
+                {sessions.map((session) => (
+                  <Option 
+                    key={session.path} 
+                    value={session.path}
+                    label={session.name}
+                  >
+                    <div style={{ fontWeight: 600, color: session.type === 'crawler_session' ? '#52c41a' : '#666' }}>
+                      {session.name}
+                    </div>
+                  </Option>
+                ))}
+              </Select>
+            </div>
+          </Space>
           
           <Button
             type="primary"
             icon={<PlayCircleOutlined />}
             onClick={switchToSession}
             disabled={!terminalReady || !selectedSession}
+            size="middle"
           >
-            切换到此会话
+            启动 {aiModels.find(m => m.key === selectedModel)?.name || 'AI'}
           </Button>
           
           <Button
             icon={<ReloadOutlined />}
             onClick={retryConnection}
             disabled={loading}
+            size="middle"
           >
             重新连接
           </Button>
           
-          <div style={{ marginLeft: 'auto', color: '#666', fontSize: '12px' }}>
-            状态: {status}
+          <div style={{ marginLeft: 'auto', alignSelf: 'center', color: '#666', fontSize: '12px' }}>
+            <div>状态: {status}</div>
           </div>
         </div>
       </Card>

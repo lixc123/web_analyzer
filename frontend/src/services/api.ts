@@ -59,7 +59,7 @@ export interface CrawlerSession {
   session_id: string
   session_name?: string
   url: string
-  status: 'created' | 'starting' | 'running' | 'stopped' | 'completed' | 'failed'
+  status: 'created' | 'starting' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed'
   created_at: string
   updated_at: string
   total_requests: number

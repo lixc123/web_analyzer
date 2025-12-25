@@ -122,11 +122,21 @@ window.addEventListener('message', (event) => {
     }
   } else if (event.data && event.data.type === 'switch-session') {
     const sessionPath = event.data.path;
-    console.log('Switching to session:', sessionPath);
-    
+    const aiModel = event.data.aiModel;
+    const aiCommand = event.data.aiCommand;
+    console.log('Switching to session:', sessionPath, 'model:', aiModel, 'command:', aiCommand);
+
     // Use the switch-session event for better handling
     if (socket.connected) {
-      socket.emit('switch-session', sessionPath);
+      if (sessionPath && (aiModel || aiCommand)) {
+        socket.emit('switch-session', {
+          path: sessionPath,
+          aiModel,
+          aiCommand
+        });
+      } else {
+        socket.emit('switch-session', sessionPath);
+      }
     }
   }
 });

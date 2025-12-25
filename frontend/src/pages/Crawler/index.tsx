@@ -39,6 +39,13 @@ const { Title, Text } = Typography
 const { TextArea } = Input
 const { Option } = Select
 
+type StopProgress = {
+  phase?: string
+  percent?: number
+  detail?: string
+  updated_at?: string
+}
+
 const CrawlerPage: React.FC = () => {
   const { token } = theme.useToken()
   const [form] = Form.useForm()
@@ -50,6 +57,9 @@ const CrawlerPage: React.FC = () => {
   const [realtimeRequests, setRealtimeRequests] = useState<any[]>([])
   const [requestsPage, setRequestsPage] = useState<number>(1)
   const [requestsPageSize, setRequestsPageSize] = useState<number>(30)
+  const [isStopping, setIsStopping] = useState(false)
+  const [stopModalVisible, setStopModalVisible] = useState(false)
+  const [stopProgress, setStopProgress] = useState<StopProgress>({ phase: '', percent: 0, detail: '' })
   const [requestFilters, setRequestFilters] = useState<{
     q?: string
     resource_type?: string
@@ -75,6 +85,21 @@ const CrawlerPage: React.FC = () => {
             // 保留最近200个请求，避免内存占用过大
             return combined.slice(-200)
           })
+        }
+
+        if (progressData.stop_progress) {
+          setStopProgress(progressData.stop_progress)
+        }
+
+        if (progressData.status === 'stopping') {
+          setIsStopping(true)
+          setStopModalVisible(true)
+        }
+
+        if (progressData.status === 'completed' || progressData.status === 'failed') {
+          setIsStarted(false)
+          setIsStopping(false)
+          setStopModalVisible(false)
         }
       }
     }
@@ -179,10 +204,13 @@ const CrawlerPage: React.FC = () => {
   const stopMutation = useMutation({
     mutationFn: crawlerApi.stopCrawler,
     onSuccess: (_data, sessionId) => {
-      notification.success({
-        title: '爬虫已停止',
+      notification.info({
+        title: '停止请求已提交',
+        description: '正在收尾导出数据，请稍候'
       })
       setIsStarted(false)
+      setIsStopping(true)
+      setStopModalVisible(true)
       queryClient.invalidateQueries({ queryKey: ['crawler-sessions'] })
       queryClient.invalidateQueries({ queryKey: ['session-requests', sessionId] })
       queryClient.refetchQueries({ queryKey: ['session-requests', sessionId] })
@@ -277,6 +305,7 @@ const CrawlerPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'running': return 'processing'
+      case 'stopping': return 'processing'
       case 'completed': return 'success'
       case 'failed': return 'error'
       case 'stopped': return 'warning'
@@ -289,6 +318,7 @@ const CrawlerPage: React.FC = () => {
       case 'created': return '已创建'
       case 'starting': return '启动中'
       case 'running': return '录制中'
+      case 'stopping': return '停止中'
       case 'completed': return '已完成'
       case 'failed': return '失败'
       case 'stopped': return '已停止'
@@ -348,6 +378,13 @@ const CrawlerPage: React.FC = () => {
               icon={<StopOutlined />}
               onClick={() => stopMutation.mutate(record.session_id)}
               loading={stopMutation.isPending}
+            />
+          ) : record.status === 'stopping' ? (
+            <Button
+              type="text"
+              icon={<StopOutlined />}
+              loading
+              disabled
             />
           ) : (
             <Button
@@ -449,6 +486,32 @@ const CrawlerPage: React.FC = () => {
 
       {/* 爬虫控制面板 */}
       <Card title="爬虫控制" className="mb-24">
+        <Modal
+          title="正在停止并收尾"
+          open={stopModalVisible}
+          onCancel={() => setStopModalVisible(false)}
+          footer={null}
+          closable
+          maskClosable={false}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <Text strong>阶段</Text>
+              <div style={{ marginTop: 4 }}>{stopProgress.phase || 'stopping'}</div>
+            </div>
+            <div>
+              <Text strong>详情</Text>
+              <div style={{ marginTop: 4 }}>{stopProgress.detail || 'processing'}</div>
+            </div>
+            <Progress percent={Math.max(0, Math.min(100, Number(stopProgress.percent ?? 0)))} status="active" />
+            <Alert
+              type="info"
+              showIcon
+              message="停止可能需要一些时间"
+              description="录制较多时会导出会话文件、生成回放代码并关闭浏览器。页面无需等待请求返回，进度会在此处实时更新。"
+            />
+          </div>
+        </Modal>
         {/* 网络控制台 - 默认显示，类似F12 */}
         <Card 
           title={
@@ -662,7 +725,15 @@ const CrawlerPage: React.FC = () => {
           </Form.Item>
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <Form.Item label="最大深度" name="max_depth" style={{ minWidth: 120 }}>
+            <Form.Item
+              label={
+                <Tooltip title="推荐 2-4。当前版本该字段主要用于记录配置，后续可用于自动爬取/自动导航的深度限制。">
+                  最大深度
+                </Tooltip>
+              }
+              name="max_depth"
+              style={{ minWidth: 120 }}
+            >
               <Input type="number" min={1} max={10} />
             </Form.Item>
 
@@ -689,7 +760,7 @@ const CrawlerPage: React.FC = () => {
               icon={<PlayCircleOutlined />}
               onClick={handleStart}
               loading={startMutation.isPending}
-              disabled={isStarted}
+              disabled={isStarted || isStopping}
             >
               开始录制
             </Button>
@@ -697,7 +768,7 @@ const CrawlerPage: React.FC = () => {
               icon={<StopOutlined />}
               onClick={handleStop}
               loading={stopMutation.isPending}
-              disabled={!isStarted}
+              disabled={!isStarted || isStopping}
             >
               停止录制
             </Button>

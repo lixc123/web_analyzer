@@ -83,16 +83,30 @@ io.on('connection', (socket) => {
     ptyProcess.resize(size.cols, size.rows);
   });
 
-  // Handle qwen command execution
+  // Handle AI command execution (支持多个AI模型)
+  socket.on('run-ai', (data = {}) => {
+    const { model = 'qwen', args = '' } = data;
+    const aiCommand = args ? `${model} ${args}\r` : `${model}\r`;
+    console.log(`[INFO] Running AI command: ${aiCommand.trim()}`);
+    ptyProcess.write(aiCommand);
+  });
+
+  // Handle qwen command execution (保持兼容性)
   socket.on('run-qwen', (args = '') => {
     // Change to specified directory first if provided
     const qwenCommand = args ? `qwen ${args}\r` : 'qwen\r';
     ptyProcess.write(qwenCommand);
   });
 
-  // Handle session switching
-  socket.on('switch-session', (sessionPath) => {
+  // Handle session switching (支持多AI模型)
+  socket.on('switch-session', (data) => {
+    // 兼容旧格式：如果传入字符串，视为sessionPath
+    const sessionPath = typeof data === 'string' ? data : data.path;
+    const aiModel = typeof data === 'object' ? data.aiModel || 'qwen' : 'qwen';
+    const aiCommand = typeof data === 'object' ? data.aiCommand || 'qwen' : 'qwen';
+    
     console.log('[INFO] Switching to session:', sessionPath);
+    console.log('[INFO] Using AI model:', aiModel, 'with command:', aiCommand);
     
     // Send Ctrl+C to cancel any running process
     ptyProcess.write('\x03');
@@ -104,13 +118,13 @@ io.on('connection', (socket) => {
     setTimeout(() => {
       ptyProcess.write(`cd "${sessionPath}"\r`);
       
-      // Wait then clear screen & run qwen
+      // Wait then clear screen & run selected AI model
       setTimeout(() => {
         const clearCmd = os.platform() === 'win32' ? 'cls' : 'clear';
         ptyProcess.write(`${clearCmd}\r`);
         setTimeout(() => {
-          ptyProcess.write('qwen\r');
-          console.log('[INFO] Qwen started in session:', sessionPath);
+          ptyProcess.write(`${aiCommand}\r`);
+          console.log(`[INFO] ${aiModel} started in session:`, sessionPath);
         }, 120);
       }, 350);
     }, 600);
