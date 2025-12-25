@@ -458,3 +458,19 @@ body {
     transform: translateX(0);
   }
 }
+
+.wa-stop-progress-modal .ant-progress-outer,
+.wa-stop-progress-modal .ant-progress-inner,
+.wa-stop-progress-modal .ant-progress-bg {
+  overflow: hidden;
+}
+
+.wa-stop-progress-modal .ant-progress-bg {
+  position: relative;
+}
+
+.wa-stop-progress-modal .ant-progress-bg::before {
+  display: none !important;
+  animation: none !important;
+  content: none !important;
+}

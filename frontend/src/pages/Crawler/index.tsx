@@ -68,6 +68,9 @@ const CrawlerPage: React.FC = () => {
   }>({})
   const queryClient = useQueryClient()
 
+  const stopPercentRaw = Number(stopProgress.percent)
+  const stopPercent = Math.max(0, Math.min(100, Number.isFinite(stopPercentRaw) ? stopPercentRaw : 0))
+
   // 监听WebSocket爬虫进度消息实现实时预览
   useEffect(() => {
     const handleCrawlerProgress = (event: CustomEvent) => {
@@ -489,6 +492,7 @@ const CrawlerPage: React.FC = () => {
         <Modal
           title="正在停止并收尾"
           open={stopModalVisible}
+          className="wa-stop-progress-modal"
           onCancel={() => setStopModalVisible(false)}
           footer={null}
           closable
@@ -503,7 +507,7 @@ const CrawlerPage: React.FC = () => {
               <Text strong>详情</Text>
               <div style={{ marginTop: 4 }}>{stopProgress.detail || 'processing'}</div>
             </div>
-            <Progress percent={Math.max(0, Math.min(100, Number(stopProgress.percent ?? 0)))} status="active" />
+            <Progress percent={stopPercent} status="normal" />
             <Alert
               type="info"
               showIcon

@@ -219,7 +219,7 @@ Generated from Web Analyzer Session: {self.session_name}
         method_lines.extend([
             f"    def request_{index}(self):",
             f"        \"\"\"",
-            f"        {record.method} {url_info['path']}",
+            f"        {(record.method or 'GET').upper()} {url_info['path']}",
             f"        域名: {url_info['domain']}",
             f"        状态: {record.status or 'Unknown'}",
         ])
@@ -230,7 +230,8 @@ Generated from Web Analyzer Session: {self.session_name}
         method_lines.extend([
             f"        \"\"\"",
             f"        # 请求配置",
-            f"        url = '{record.url}'",
+            f"        method = {json.dumps((record.method or 'GET').upper(), ensure_ascii=False)}",
+            f"        url = {json.dumps(record.url or '', ensure_ascii=False)}",
         ])
         
         # 处理请求头
@@ -240,11 +241,11 @@ Generated from Web Analyzer Session: {self.session_name}
         
         # 处理请求体
         data_code = ""
-        if record.post_data and record.method.upper() in ['POST', 'PUT', 'PATCH']:
+        if record.post_data and (record.method or "").upper() in ['POST', 'PUT', 'PATCH']:
             data_code = self._generate_data_code(record.post_data)
         
         # 生成请求调用
-        request_params = ["url"]
+        request_params = ["method=method", "url=url"]
         if record.headers:
             request_params.append("headers=headers")
         if data_code:
@@ -257,12 +258,12 @@ Generated from Web Analyzer Session: {self.session_name}
         method_lines.extend([
             f"        ",
             f"        # 发送请求",
-            f"        response = self.session.{record.method.lower()}({', '.join(request_params)})",
+            f"        response = self.session.request({', '.join(request_params)})",
             f"        ",
             f"        # 处理响应",
             f"        result = {{",
             f"            'url': url,",
-            f"            'method': '{record.method}',",
+            f"            'method': method,",
             f"            'status_code': response.status_code,",
             f"            'headers': dict(response.headers),",
             f"        }}",
@@ -293,7 +294,7 @@ Generated from Web Analyzer Session: {self.session_name}
             if key.lower() not in skip_headers:
                 filtered_headers[key] = value
         
-        return json.dumps(filtered_headers, ensure_ascii=False, indent=12)[1:-1].replace('\n            ', '\n        ')
+        return json.dumps(filtered_headers, ensure_ascii=False)
     
     def _generate_data_code(self, post_data: str) -> str:
         """生成请求体代码"""
@@ -302,16 +303,16 @@ Generated from Web Analyzer Session: {self.session_name}
         
         # 尝试解析为JSON
         try:
-            json_obj = json.loads(post_data)
-            return f"json_data = {json.dumps(json_obj, ensure_ascii=False, indent=8)}"
+            json.loads(post_data)
+            return f"json_data = json.loads({json.dumps(post_data, ensure_ascii=False)})"
         except:
             # 检查是否为表单数据
             if '=' in post_data and '&' in post_data:
                 # URL编码的表单数据
-                return f"data = '{post_data}'"
+                return f"data = {json.dumps(post_data, ensure_ascii=False)}"
             else:
                 # 其他类型的数据
-                return f"data = '''{post_data}'''"
+                return f"data = {json.dumps(post_data, ensure_ascii=False)}"
     
     def _extract_url_info(self, url: str) -> Dict[str, str]:
         """提取URL信息"""
@@ -347,7 +348,7 @@ if __name__ == "__main__":
     success_count = len([r for r in results if r.get('success')])
     total_count = len(results)
     
-    print(f"\n[STAT] 执行完成:")
+    print(f"\\n[STAT] 执行完成:")
     print(f"  - 总请求数: {total_count}")
     print(f"  - 成功: {success_count}")
     print(f"  - 失败: {total_count - success_count}")
@@ -356,7 +357,7 @@ if __name__ == "__main__":
     with open(f'session_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json', 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     
-    print("\n[OK] 结果已保存到 session_results_*.json")
+    print("\\n[OK] 结果已保存到 session_results_*.json")
 '''
 
 
@@ -418,7 +419,7 @@ def generate_single_request_python_code(record: RequestRecord, session_path: Pat
 
     if post_data and method in {"POST", "PUT", "PATCH"}:
         if json_obj is not None:
-            body_block += f"    json_data = {_py_literal(json_obj)}\n"
+            body_block += f"    json_data = json.loads({_py_literal(post_data)})\n"
             send_args.append("json=json_data")
         else:
             body_block += f"    data = {_py_literal(post_data)}\n"
@@ -665,10 +666,24 @@ def generate_code_from_session(session_path: Path) -> str:
         # 增强代码，添加JavaScript分析功能
         if call_stacks:
             enhanced_code = enhance_code_with_js_analysis(base_code, call_stacks, session_path)
-            return enhanced_code
+            try:
+                compile(enhanced_code, str(session_path / "replay_session.py"), "exec")
+                return enhanced_code
+            except SyntaxError:
+                try:
+                    compile(base_code, str(session_path / "replay_session.py"), "exec")
+                    return base_code
+                except SyntaxError as e:
+                    msg = f"Generated code is not runnable: {repr(e)}"
+                    return "import sys\n" + f"print({json.dumps(msg, ensure_ascii=False)})\n" + "sys.exit(1)\n"
         else:
+            try:
+                compile(base_code, str(session_path / "replay_session.py"), "exec")
+            except SyntaxError as e:
+                msg = f"Generated code is not runnable: {repr(e)}"
+                return "import sys\n" + f"print({json.dumps(msg, ensure_ascii=False)})\n" + "sys.exit(1)\n"
             return base_code
-        
+         
     except Exception as e:
         return f"# 读取请求记录时出错: {e}\nprint('Error reading requests: {e}')\n"
 

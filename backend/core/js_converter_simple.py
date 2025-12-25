@@ -15,7 +15,21 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
     
     if not call_stacks or not any(call_stacks):
         return base_code
-    
+
+    if "from pathlib import Path" not in base_code:
+        lines = base_code.splitlines()
+        empty_idx = None
+        for idx, line in enumerate(lines):
+            if not line.strip():
+                empty_idx = idx
+                break
+            
+        if empty_idx is None:
+            lines.append("from pathlib import Path")
+        else:
+            lines.insert(empty_idx, "from pathlib import Path")
+        base_code = "\n".join(lines) + ("\n" if base_code.endswith("\n") else "")
+
     # 添加JavaScript分析方法到WebSession类
     js_analysis_code = '''
     def analyze_javascript_contexts(self):
@@ -27,10 +41,12 @@ def enhance_code_with_js_analysis(base_code: str, call_stacks: List[str], sessio
     # 添加调用栈数据
     for i, stack in enumerate(call_stacks):
         if stack:
-            escaped_stack = stack.replace('"', '\\"')[:200]
+            preview = stack[:200]
+            if len(stack) > 200:
+                preview = preview + "..."
             js_analysis_code += f'''
             # 调用栈 {i+1}
-            "{escaped_stack}...",'''
+            {json.dumps(preview, ensure_ascii=False)},'''
     
     js_analysis_code += '''
         ]
