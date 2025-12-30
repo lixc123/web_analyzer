@@ -338,7 +338,9 @@ class RecorderService:
             browser_context = await browser_manager.create_browser_context(
                 config.get("headless", True),
                 config.get("user_agent"),
-                config.get("timeout", 30)
+                config.get("timeout", 30),
+                config.get("use_system_chrome", False),
+                config.get("chrome_path")
             )
 
             # 确保录制器已经绑定 archiver（用于响应落盘、hook落盘、浏览器数据落盘）
@@ -372,6 +374,114 @@ class RecorderService:
             session["status"] = "failed"
             session["errors"].append(str(e))
             logger.error(f"启动录制失败 {session_id}: {e}")
+            raise
+
+    async def open_browser_only(self, session_id: str):
+        """仅打开浏览器，不开始录制（手动控制模式）"""
+        if session_id not in self.active_sessions:
+            raise ValueError(f"会话 {session_id} 不存在")
+        
+        session = self.active_sessions[session_id]
+        recorder = self.session_recorders[session_id]
+        browser_manager = self.browser_managers[session_id]
+        archiver = self.session_archivers.get(session_id)
+        
+        try:
+            # 更新会话状态
+            session["status"] = "browser_ready"
+            session["updated_at"] = datetime.now().isoformat()
+            self.active_sessions[session_id] = session
+            
+            # 启动实时推送
+            self._ensure_realtime_task(session_id)
+            
+            # 使用现有BrowserManager启动浏览器
+            config = session["config"]
+            browser_context = await browser_manager.create_browser_context(
+                config.get("headless", False),  # 手动模式默认非无头
+                config.get("user_agent"),
+                config.get("timeout", 30),
+                config.get("use_system_chrome", False),
+                config.get("chrome_path")
+            )
+
+            # 确保录制器已经绑定 archiver
+            if archiver is not None:
+                recorder.set_archiver(archiver)
+                try:
+                    if hasattr(browser_manager, "set_screenshot_directory"):
+                        browser_manager.set_screenshot_directory(str(archiver.session_dir / "screenshots"))
+                except Exception:
+                    pass
+            
+            # 获取页面并导航到目标URL，但不开始录制
+            page = browser_manager.page
+            if page is None:
+                raise RuntimeError("浏览器页面未初始化")
+            
+            # 设置页面到browser_manager
+            browser_manager._page = page
+            
+            # 导航到目标URL
+            await page.goto(session["url"], wait_until="domcontentloaded")
+            
+            # 设置当前URL用于实时预览
+            session["current_url"] = session["url"]
+            session["updated_at"] = datetime.now().isoformat()
+            self.active_sessions[session_id] = session
+            
+            logger.info(f"会话 {session_id} 浏览器已打开，等待手动开始录制")
+            logger.info(f"当前活动会话数: {len(self.active_sessions)}")
+            
+        except Exception as e:
+            session["status"] = "failed"
+            session["errors"].append(str(e))
+            logger.error(f"打开浏览器失败 {session_id}: {e}")
+            raise
+
+    async def start_manual_recording(self, session_id: str):
+        """手动开始录制（用于手动控制模式）"""
+        if session_id not in self.active_sessions:
+            raise ValueError(f"会话 {session_id} 不存在")
+        
+        session = self.active_sessions[session_id]
+        recorder = self.session_recorders.get(session_id)
+        browser_manager = self.browser_managers.get(session_id)
+        
+        if session.get("status") != "browser_ready":
+            raise ValueError(f"会话 {session_id} 状态不正确，当前状态: {session.get('status')}")
+        
+        if not recorder or not browser_manager:
+            raise ValueError(f"会话 {session_id} 的录制器或浏览器管理器未初始化")
+        
+        try:
+            # 更新会话状态
+            session["status"] = "starting"
+            session["updated_at"] = datetime.now().isoformat()
+            self.active_sessions[session_id] = session
+            
+            # 获取当前页面URL
+            page = browser_manager.page
+            if page:
+                try:
+                    session["current_url"] = page.url
+                except Exception:
+                    pass
+            
+            # 开始录制
+            await recorder.start()
+            
+            # 更新会话状态
+            session["status"] = "running"
+            session["updated_at"] = datetime.now().isoformat()
+            self.active_sessions[session_id] = session
+            
+            logger.info(f"会话 {session_id} 手动开始录制")
+            
+        except Exception as e:
+            session["status"] = "failed"
+            session["errors"].append(str(e))
+            logger.error(f"手动开始录制失败 {session_id}: {e}")
             raise
     
     async def stop_recording(self, session_id: str):

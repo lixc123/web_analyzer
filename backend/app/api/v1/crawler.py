@@ -19,6 +19,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Pydantic models for request/response
+class HookOptions(BaseModel):
+    """JS Hook 功能选项"""
+    network: bool = True           # 网络请求拦截 (fetch/XHR)
+    storage: bool = False          # 存储拦截 (localStorage/sessionStorage/IndexedDB)
+    userInteraction: bool = False  # 用户交互跟踪 (click/input等)
+    form: bool = False             # 表单数据跟踪
+    dom: bool = False              # DOM变化监控
+    navigation: bool = False       # 导航历史跟踪
+    console: bool = False          # Console日志拦截
+    performance: bool = False      # 性能数据监控
+
 class CrawlerConfig(BaseModel):
     url: str
     max_depth: int = 3
@@ -27,6 +38,10 @@ class CrawlerConfig(BaseModel):
     headless: bool = False
     user_agent: Optional[str] = None
     timeout: int = 30
+    manual_recording: bool = False  # 手动控制录制模式：先打开浏览器，用户手动开始/停止录制
+    hook_options: HookOptions = HookOptions()  # JS Hook 功能选项，默认只开启网络请求
+    use_system_chrome: bool = False  # 使用系统安装的 Chrome 而非 Playwright 内置 Chromium
+    chrome_path: Optional[str] = None  # 自定义 Chrome 路径
     
 class CrawlerStartRequest(BaseModel):
     config: CrawlerConfig
@@ -62,20 +77,39 @@ async def start_crawler(
             config=request.config.dict()
         )
         
-        async def _run_start_recording() -> None:
-            try:
-                await recorder_service.start_recording(session_id)
-            except Exception as e:
-                logger.error(f"后台启动录制失败 {session_id}: {e}")
+        # 检查是否为手动录制模式
+        if request.config.manual_recording:
+            # 手动模式：只打开浏览器，不自动开始录制
+            async def _run_open_browser() -> None:
+                try:
+                    await recorder_service.open_browser_only(session_id)
+                except Exception as e:
+                    logger.error(f"后台打开浏览器失败 {session_id}: {e}")
 
-        asyncio.create_task(_run_start_recording())
-        
-        return CrawlerResponse(
-            session_id=session_id,
-            status="starting",
-            message="爬虫任务启动中",
-            config=request.config
-        )
+            asyncio.create_task(_run_open_browser())
+            
+            return CrawlerResponse(
+                session_id=session_id,
+                status="browser_ready",
+                message="浏览器已打开，请手动开始录制",
+                config=request.config
+            )
+        else:
+            # 自动模式：打开浏览器并立即开始录制
+            async def _run_start_recording() -> None:
+                try:
+                    await recorder_service.start_recording(session_id)
+                except Exception as e:
+                    logger.error(f"后台启动录制失败 {session_id}: {e}")
+
+            asyncio.create_task(_run_start_recording())
+            
+            return CrawlerResponse(
+                session_id=session_id,
+                status="starting",
+                message="爬虫任务启动中",
+                config=request.config
+            )
         
     except Exception as e:
         logger.error(f"启动爬虫失败: {e}")
@@ -93,6 +127,20 @@ async def stop_crawler(session_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"停止爬虫失败: {e}")
         raise HTTPException(status_code=500, detail=f"停止爬虫失败: {str(e)}")
+
+
+@router.post("/start-recording/{session_id}")
+async def start_manual_recording(session_id: str, db: Session = Depends(get_db)):
+    """手动开始录制（用于手动控制模式）"""
+    try:
+        recorder_service = get_recorder_service()
+        await recorder_service.start_manual_recording(session_id)
+        
+        return {"session_id": session_id, "status": "running", "message": "录制已开始"}
+        
+    except Exception as e:
+        logger.error(f"手动开始录制失败: {e}")
+        raise HTTPException(status_code=500, detail=f"手动开始录制失败: {str(e)}")
 
 @router.get("/status/{session_id}", response_model=CrawlerStatus)
 async def get_crawler_status(session_id: str, db: Session = Depends(get_db)):

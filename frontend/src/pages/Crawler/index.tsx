@@ -33,11 +33,39 @@ import {
   ClearOutlined
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { crawlerApi, CrawlerConfig, CrawlerSession, RequestRecord } from '@services/api'
+import { crawlerApi, CrawlerConfig, CrawlerSession, RequestRecord, HookOptions } from '@services/api'
+
+const { CheckableTag } = Tag
 
 const { Title, Text } = Typography
 const { TextArea } = Input
 const { Option } = Select
+
+// Hook 选项配置
+const HOOK_OPTIONS_CONFIG = [
+  { key: 'network', label: '网络请求', description: 'Fetch/XHR 请求拦截，获取调用栈', risk: 'low' },
+  { key: 'storage', label: '存储监控', description: 'localStorage/sessionStorage/IndexedDB', risk: 'medium' },
+  { key: 'userInteraction', label: '用户交互', description: '点击、输入、滚动等事件', risk: 'high' },
+  { key: 'form', label: '表单跟踪', description: '表单输入和提交', risk: 'medium' },
+  { key: 'dom', label: 'DOM监控', description: 'DOM变化监控', risk: 'high' },
+  { key: 'navigation', label: '导航历史', description: 'History API 跟踪', risk: 'medium' },
+  { key: 'console', label: 'Console拦截', description: '控制台日志拦截', risk: 'high' },
+  { key: 'performance', label: '性能数据', description: '页面性能指标', risk: 'low' },
+] as const
+
+type HookOptionKey = typeof HOOK_OPTIONS_CONFIG[number]['key']
+
+// 默认只开启网络请求（风险最低且最有用）
+const DEFAULT_HOOK_OPTIONS: HookOptions = {
+  network: true,
+  storage: false,
+  userInteraction: false,
+  form: false,
+  dom: false,
+  navigation: false,
+  console: false,
+  performance: false,
+}
 
 type StopProgress = {
   phase?: string
@@ -50,6 +78,7 @@ const CrawlerPage: React.FC = () => {
   const { token } = theme.useToken()
   const [form] = Form.useForm()
   const [isStarted, setIsStarted] = useState(false)
+  const [isBrowserReady, setIsBrowserReady] = useState(false)  // 浏览器已打开但未录制
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [requestsDrawerVisible, setRequestsDrawerVisible] = useState(false)
   const [configModalVisible, setConfigModalVisible] = useState(false)
@@ -66,6 +95,7 @@ const CrawlerPage: React.FC = () => {
     method?: string
     status?: number
   }>({})
+  const [hookOptions, setHookOptions] = useState<HookOptions>(DEFAULT_HOOK_OPTIONS)
   const queryClient = useQueryClient()
 
   const stopPercentRaw = Number(stopProgress.percent)
@@ -99,8 +129,19 @@ const CrawlerPage: React.FC = () => {
           setStopModalVisible(true)
         }
 
+        if (progressData.status === 'browser_ready') {
+          setIsBrowserReady(true)
+          setIsStarted(false)
+        }
+
+        if (progressData.status === 'running') {
+          setIsStarted(true)
+          setIsBrowserReady(false)
+        }
+
         if (progressData.status === 'completed' || progressData.status === 'failed') {
           setIsStarted(false)
+          setIsBrowserReady(false)
           setIsStopping(false)
           setStopModalVisible(false)
         }
@@ -143,17 +184,46 @@ const CrawlerPage: React.FC = () => {
     mutationFn: ({ config, sessionName }: { config: CrawlerConfig; sessionName?: string }) =>
       crawlerApi.startCrawler(config, sessionName),
     onSuccess: (data) => {
+      const isManualMode = data.status === 'browser_ready'
       notification.success({
-        title: '爬虫启动成功',
-        description: `会话 ${data.session_id} 已开始录制`
+        message: isManualMode ? '浏览器已打开' : '爬虫启动成功',
+        description: isManualMode 
+          ? `会话 ${data.session_id} 浏览器已打开，请手动开始录制`
+          : `会话 ${data.session_id} 已开始录制`
       })
-      setIsStarted(true)
+      if (isManualMode) {
+        setIsBrowserReady(true)
+        setIsStarted(false)
+      } else {
+        setIsStarted(true)
+        setIsBrowserReady(false)
+      }
       setSelectedSession(data.session_id)
       queryClient.invalidateQueries({ queryKey: ['crawler-sessions'] })
     },
     onError: (error: Error) => {
       notification.error({
-        title: '爬虫启动失败',
+        message: '爬虫启动失败',
+        description: error.message
+      })
+    }
+  })
+
+  // 手动开始录制
+  const startManualRecordingMutation = useMutation({
+    mutationFn: (sessionId: string) => crawlerApi.startManualRecording(sessionId),
+    onSuccess: (_data, sessionId) => {
+      notification.success({
+        message: '录制已开始',
+        description: `会话 ${sessionId} 开始录制网络请求`
+      })
+      setIsStarted(true)
+      setIsBrowserReady(false)
+      queryClient.invalidateQueries({ queryKey: ['crawler-sessions'] })
+    },
+    onError: (error: Error) => {
+      notification.error({
+        message: '开始录制失败',
         description: error.message
       })
     }
@@ -169,12 +239,12 @@ const CrawlerPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['session-requests', sessionId] })
       queryClient.refetchQueries({ queryKey: ['session-requests', sessionId] })
       notification.success({
-        title: '已清空会话请求'
+        message: '已清空会话请求'
       })
     },
     onError: (error: Error) => {
       notification.error({
-        title: '清空会话请求失败',
+        message: '清空会话请求失败',
         description: error.message
       })
     }
@@ -192,12 +262,12 @@ const CrawlerPage: React.FC = () => {
       URL.revokeObjectURL(url)
 
       notification.success({
-        title: '会话打包下载成功'
+        message: '会话打包下载成功'
       })
     },
     onError: (error: Error) => {
       notification.error({
-        title: '会话打包下载失败',
+        message: '会话打包下载失败',
         description: error.message
       })
     }
@@ -208,7 +278,7 @@ const CrawlerPage: React.FC = () => {
     mutationFn: crawlerApi.stopCrawler,
     onSuccess: (_data, sessionId) => {
       notification.info({
-        title: '停止请求已提交',
+        message: '停止请求已提交',
         description: '正在收尾导出数据，请稍候'
       })
       setIsStarted(false)
@@ -220,7 +290,7 @@ const CrawlerPage: React.FC = () => {
     },
     onError: (error: Error) => {
       notification.error({
-        title: '停止爬虫失败',
+        message: '停止爬虫失败',
         description: error.message
       })
     }
@@ -231,7 +301,7 @@ const CrawlerPage: React.FC = () => {
     mutationFn: crawlerApi.deleteSession,
     onSuccess: () => {
       notification.success({
-        title: '会话已删除'
+        message: '会话已删除'
       })
       queryClient.invalidateQueries({ queryKey: ['crawler-sessions'] })
       if (selectedSession) {
@@ -240,7 +310,7 @@ const CrawlerPage: React.FC = () => {
     },
     onError: (error: Error) => {
       notification.error({
-        title: '删除会话失败',
+        message: '删除会话失败',
         description: error.message
       })
     }
@@ -261,12 +331,12 @@ const CrawlerPage: React.FC = () => {
       URL.revokeObjectURL(url)
 
       notification.success({
-        title: '数据导出成功'
+        message: '数据导出成功'
       })
     },
     onError: (error: Error) => {
       notification.error({
-        title: '数据导出失败',
+        message: '数据导出失败',
         description: error.message
       })
     }
@@ -280,6 +350,10 @@ const CrawlerPage: React.FC = () => {
     
     try {
       const values = await form.validateFields()
+      
+      // 从 localStorage 读取 Chrome 路径配置
+      const chromePath = localStorage.getItem('chrome_path') || undefined
+      
       const config: CrawlerConfig = {
         url: values.url,
         max_depth: values.max_depth || 3,
@@ -287,7 +361,11 @@ const CrawlerPage: React.FC = () => {
         capture_screenshots: values.capture_screenshots ?? false,
         headless: values.headless ?? false,
         user_agent: values.user_agent,
-        timeout: values.timeout || 30
+        timeout: values.timeout || 30,
+        manual_recording: values.manual_recording ?? false,  // 手动控制录制模式
+        hook_options: hookOptions,  // Hook 功能选项
+        use_system_chrome: values.use_system_chrome ?? false,  // 使用系统 Chrome
+        chrome_path: chromePath  // 自定义 Chrome 路径
       }
       
       startMutation.mutate({
@@ -296,6 +374,12 @@ const CrawlerPage: React.FC = () => {
       })
     } catch (error) {
       console.error('表单验证失败:', error)
+    }
+  }
+
+  const handleStartManualRecording = () => {
+    if (selectedSession) {
+      startManualRecordingMutation.mutate(selectedSession)
     }
   }
 
@@ -312,6 +396,7 @@ const CrawlerPage: React.FC = () => {
       case 'completed': return 'success'
       case 'failed': return 'error'
       case 'stopped': return 'warning'
+      case 'browser_ready': return 'warning'
       default: return 'default'
     }
   }
@@ -325,6 +410,7 @@ const CrawlerPage: React.FC = () => {
       case 'completed': return '已完成'
       case 'failed': return '失败'
       case 'stopped': return '已停止'
+      case 'browser_ready': return '等待录制'
       default: return '未知'
     }
   }
@@ -375,7 +461,18 @@ const CrawlerPage: React.FC = () => {
               setRequestsDrawerVisible(true)
             }}
           />
-          {record.status === 'running' ? (
+          {record.status === 'browser_ready' ? (
+            <Button
+              type="text"
+              icon={<PlayCircleOutlined />}
+              onClick={() => {
+                setSelectedSession(record.session_id)
+                startManualRecordingMutation.mutate(record.session_id)
+              }}
+              loading={startManualRecordingMutation.isPending}
+              style={{ color: '#52c41a' }}
+            />
+          ) : record.status === 'running' ? (
             <Button
               type="text"
               icon={<StopOutlined />}
@@ -710,7 +807,9 @@ const CrawlerPage: React.FC = () => {
             follow_redirects: true,
             capture_screenshots: false,
             headless: false,
-            timeout: 30
+            timeout: 30,
+            manual_recording: false,
+            use_system_chrome: false
           }}
         >
           <Form.Item
@@ -756,6 +855,102 @@ const CrawlerPage: React.FC = () => {
             <Form.Item label="截图" name="capture_screenshots" valuePropName="checked">
               <Switch />
             </Form.Item>
+
+            <Form.Item 
+              label={
+                <Tooltip title="开启后先打开浏览器，您可以浏览页面后手动点击开始录制，而不是打开就立即录制">
+                  手动控制录制
+                </Tooltip>
+              } 
+              name="manual_recording" 
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+
+            <Form.Item 
+              label={
+                <Tooltip title="使用系统安装的 Chrome 浏览器，而非 Playwright 内置的 Chromium。可以更好地绕过网站检测">
+                  系统Chrome
+                </Tooltip>
+              } 
+              name="use_system_chrome" 
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </div>
+
+          {/* Hook 功能选项 */}
+          <div style={{ marginTop: 16, marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Text strong>JS Hook 选项</Text>
+              <Tooltip title="这些选项会向页面注入JS代码来捕获更多信息。开启过多可能触发网站风控，建议只开启必要的选项。">
+                <Text type="secondary" style={{ fontSize: 12, cursor: 'help' }}>
+                  (⚠️ 开启过多可能触发风控)
+                </Text>
+              </Tooltip>
+              <Button 
+                size="small" 
+                type="link"
+                onClick={() => {
+                  const allEnabled = Object.values(hookOptions).every(v => v)
+                  const newOptions: HookOptions = {
+                    network: !allEnabled,
+                    storage: !allEnabled,
+                    userInteraction: !allEnabled,
+                    form: !allEnabled,
+                    dom: !allEnabled,
+                    navigation: !allEnabled,
+                    console: !allEnabled,
+                    performance: !allEnabled,
+                  }
+                  setHookOptions(newOptions)
+                }}
+              >
+                {Object.values(hookOptions).every(v => v) ? '取消全选' : '全选'}
+              </Button>
+              <Button
+                size="small"
+                type="link"
+                onClick={() => setHookOptions(DEFAULT_HOOK_OPTIONS)}
+              >
+                重置默认
+              </Button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {HOOK_OPTIONS_CONFIG.map(option => (
+                <Tooltip 
+                  key={option.key} 
+                  title={
+                    <div>
+                      <div>{option.description}</div>
+                      <div style={{ marginTop: 4 }}>
+                        风险等级: {option.risk === 'low' ? '🟢 低' : option.risk === 'medium' ? '🟡 中' : '🔴 高'}
+                      </div>
+                    </div>
+                  }
+                >
+                  <Tag.CheckableTag
+                    checked={hookOptions[option.key as HookOptionKey]}
+                    onChange={(checked) => {
+                      setHookOptions(prev => ({
+                        ...prev,
+                        [option.key]: checked
+                      }))
+                    }}
+                    style={{
+                      padding: '4px 12px',
+                      border: `1px solid ${hookOptions[option.key as HookOptionKey] ? '#1890ff' : token.colorBorder}`,
+                      backgroundColor: hookOptions[option.key as HookOptionKey] ? '#1890ff' : 'transparent',
+                      color: hookOptions[option.key as HookOptionKey] ? '#fff' : token.colorText
+                    }}
+                  >
+                    {option.label}
+                  </Tag.CheckableTag>
+                </Tooltip>
+              ))}
+            </div>
           </div>
 
           <Space>
@@ -764,15 +959,26 @@ const CrawlerPage: React.FC = () => {
               icon={<PlayCircleOutlined />}
               onClick={handleStart}
               loading={startMutation.isPending}
-              disabled={isStarted || isStopping}
+              disabled={isStarted || isBrowserReady || isStopping}
             >
-              开始录制
+              {form.getFieldValue('manual_recording') ? '打开浏览器' : '开始录制'}
             </Button>
+            {isBrowserReady && (
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                onClick={handleStartManualRecording}
+                loading={startManualRecordingMutation.isPending}
+                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+              >
+                开始录制
+              </Button>
+            )}
             <Button
               icon={<StopOutlined />}
               onClick={handleStop}
               loading={stopMutation.isPending}
-              disabled={!isStarted || isStopping}
+              disabled={(!isStarted && !isBrowserReady) || isStopping}
             >
               停止录制
             </Button>

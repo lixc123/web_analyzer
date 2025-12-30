@@ -6,11 +6,16 @@ import sys
 
 try:
     from playwright.async_api import async_playwright, Browser, Page
-except ImportError:  # playwright is optional until the user installs it
-    async_playwright = None  # type: ignore[assignment]
-    Browser = Page = None  # type: ignore[assignment]
+except ImportError:
+    async_playwright = None
+    Browser = Page = None
 
-from .js_hooks import JS_HOOK_SCRIPT
+try:
+    from playwright_stealth import Stealth
+    HAS_STEALTH = True
+except ImportError:
+    Stealth = None
+    HAS_STEALTH = False
 
 
 class ThreadSafeContextWrapper:
@@ -104,13 +109,6 @@ class BrowserManager:
         browser = await pw.chromium.launch(headless=headless)
         page = await browser.new_page()
 
-        # 注入 JS Hook，用于拦截 fetch / XHR 调用栈
-        try:
-            await page.add_init_script(JS_HOOK_SCRIPT)
-        except Exception:
-            # Hook 注入失败不影响主流程
-            pass
-
         self._playwright = pw
         self._browser = browser
         self._page = page
@@ -142,11 +140,6 @@ class BrowserManager:
         context = await browser.new_context(storage_state=str(storage_state_path))
         page = await context.new_page()
 
-        try:
-            await page.add_init_script(JS_HOOK_SCRIPT)
-        except Exception:
-            pass
-
         self._playwright = pw
         self._browser = browser
         self._page = page
@@ -169,65 +162,166 @@ class BrowserManager:
     def is_running(self) -> bool:
         return self._browser is not None
 
-    async def create_browser_context(self, headless: bool = True, user_agent: str = None, timeout: int = 30):
-        """创建浏览器上下文 - Windows兼容版本"""
+    async def create_browser_context(self, headless: bool = True, user_agent: str = None, timeout: int = 30, use_system_chrome: bool = False, chrome_path: str = None):
+        """创建浏览器上下文 - 使用 playwright-stealth 反检测"""
         import sys
-        import asyncio
-        import concurrent.futures
+        import random
+        import os
         
         if self._browser is not None:
             await self.close()
 
-        # Windows和其他系统统一使用异步Playwright
-        print("[INFO] 启动异步Playwright (支持所有平台)...")
-        
-        if sys.platform == 'win32':
-            print("[INFO] Windows系统 - 使用应用级ProactorEventLoop")
+        print(f"[INFO] 启动 Playwright... (use_system_chrome={use_system_chrome}, headless={headless})")
         
         if async_playwright is None:
             raise RuntimeError("playwright is not available.")
             
         try:
-            # 非Windows系统使用异步playwright
-            if async_playwright is None:
-                raise RuntimeError("playwright is not available.")
-                
             pw = await async_playwright().start()
             print("[OK] Playwright实例已启动")
             
-            browser = await pw.chromium.launch(
-                headless=headless,
-                args=['--no-sandbox', '--disable-web-security'] if sys.platform != 'win32' else []
-            )
-            print("[OK] Chromium浏览器已启动")
+            # 启动参数
+            launch_args = [
+                '--disable-blink-features=AutomationControlled',
+                '--disable-infobars',
+                '--disable-dev-shm-usage',
+                '--no-first-run',
+                '--no-default-browser-check',
+            ]
             
-            context_options = {"viewport": {"width": 1280, "height": 720}}
-            if user_agent:
-                context_options["user_agent"] = user_agent
+            if sys.platform != 'win32':
+                launch_args.append('--no-sandbox')
+            
+            # 确定 Chrome 路径
+            final_chrome_path = None
+            
+            # 优先使用用户指定的路径
+            if chrome_path and os.path.exists(chrome_path):
+                final_chrome_path = chrome_path
+                print(f"[OK] 使用用户配置的 Chrome: {final_chrome_path}")
+            elif use_system_chrome:
+                # 自动查找系统 Chrome
+                print("[INFO] 正在查找系统 Chrome...")
+                
+                # 常见安装路径
+                possible_paths = [
+                    # Windows 常见路径
+                    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+                    "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+                    os.path.expanduser("~/AppData/Local/Google/Chrome/Application/chrome.exe"),
+                    # macOS
+                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                    # Linux
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/google-chrome-stable",
+                    "/usr/bin/chromium-browser",
+                    "/usr/bin/chromium",
+                ]
+                
+                # Windows: 尝试从注册表获取 Chrome 路径
+                if sys.platform == 'win32':
+                    try:
+                        import winreg
+                        for reg_path in [
+                            r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                        ]:
+                            try:
+                                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
+                                chrome_from_reg, _ = winreg.QueryValueEx(key, "")
+                                winreg.CloseKey(key)
+                                if chrome_from_reg and os.path.exists(chrome_from_reg):
+                                    possible_paths.insert(0, chrome_from_reg)
+                                    print(f"[DEBUG] 从注册表找到: {chrome_from_reg}")
+                                    break
+                            except WindowsError:
+                                continue
+                    except Exception as e:
+                        print(f"[DEBUG] 注册表查找失败: {e}")
+                
+                # macOS/Linux: 尝试用 which 命令
+                elif sys.platform in ['darwin', 'linux']:
+                    try:
+                        import subprocess
+                        result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
+                        if result.returncode == 0 and result.stdout.strip():
+                            possible_paths.insert(0, result.stdout.strip())
+                    except Exception:
+                        pass
+                
+                # 遍历查找
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        final_chrome_path = path
+                        print(f"[OK] 找到系统 Chrome: {final_chrome_path}")
+                        break
+                
+                if not final_chrome_path:
+                    print("[WARN] 未找到系统 Chrome，使用 Playwright 内置 Chromium")
+            
+            # 启动浏览器
+            if final_chrome_path:
+                print(f"[INFO] 使用 Chrome 启动: {final_chrome_path}")
+                browser = await pw.chromium.launch(
+                    executable_path=final_chrome_path,
+                    headless=headless,
+                    args=launch_args,
+                )
+            else:
+                print("[INFO] 使用 Playwright 内置 Chromium 启动")
+                browser = await pw.chromium.launch(
+                    headless=headless,
+                    args=launch_args,
+                )
+            print("[OK] 浏览器已启动")
+            
+            # 随机 User-Agent
+            user_agents = [
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            ]
+            final_user_agent = user_agent or random.choice(user_agents)
+            
+            # 随机屏幕分辨率
+            screen_sizes = [
+                {"width": 1920, "height": 1080},
+                {"width": 1366, "height": 768},
+                {"width": 1536, "height": 864},
+            ]
+            screen_size = random.choice(screen_sizes)
+            
+            context_options = {
+                "viewport": screen_size,
+                "user_agent": final_user_agent,
+                "locale": "zh-CN",
+                "timezone_id": "Asia/Shanghai",
+                "ignore_https_errors": True,
+            }
                 
             context = await browser.new_context(**context_options)
             context.set_default_timeout(timeout * 1000)
-            print("[OK] 浏览器上下文已创建")
-
-            try:
-                await context.add_init_script(JS_HOOK_SCRIPT)
-            except Exception as e:
-                print(f"[WARN] JS Hook注入失败: {e}")
+            print(f"[OK] 浏览器上下文已创建")
             
             page = await context.new_page()
             print("[OK] 新页面已创建")
             
-            try:
-                await page.add_init_script(JS_HOOK_SCRIPT)
-                print("[OK] JS Hook脚本已注入")
-            except Exception as e:
-                print(f"[WARN] JS Hook注入失败: {e}")
+            # 使用 playwright-stealth 注入反检测
+            if HAS_STEALTH and Stealth:
+                try:
+                    stealth = Stealth()
+                    await stealth.apply_stealth_async(page)
+                    print("[OK] playwright-stealth 反检测已启用")
+                except Exception as e:
+                    print(f"[WARN] playwright-stealth 应用失败: {e}")
+            else:
+                print("[WARN] playwright-stealth 未安装，跳过反检测")
                 
             self._playwright = pw
             self._browser = browser
             self._page = page
             
-            print("[OK] 统一异步Playwright启动完成")
+            print("[OK] Playwright启动完成")
             return context
             
         except Exception as e:

@@ -45,6 +45,18 @@ apiClient.interceptors.response.use(
 )
 
 // 类型定义
+// Hook 功能选项
+export interface HookOptions {
+  network: boolean           // 网络请求拦截 (fetch/XHR)
+  storage: boolean           // 存储拦截 (localStorage/sessionStorage/IndexedDB)
+  userInteraction: boolean   // 用户交互跟踪 (click/input等)
+  form: boolean              // 表单数据跟踪
+  dom: boolean               // DOM变化监控
+  navigation: boolean        // 导航历史跟踪
+  console: boolean           // Console日志拦截
+  performance: boolean       // 性能数据监控
+}
+
 export interface CrawlerConfig {
   url: string
   max_depth: number
@@ -53,13 +65,17 @@ export interface CrawlerConfig {
   headless: boolean
   user_agent?: string
   timeout: number
+  manual_recording?: boolean  // 手动控制录制模式
+  hook_options?: HookOptions  // Hook 功能选项
+  use_system_chrome?: boolean // 使用系统 Chrome
+  chrome_path?: string        // 自定义 Chrome 路径
 }
 
 export interface CrawlerSession {
   session_id: string
   session_name?: string
   url: string
-  status: 'created' | 'starting' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed'
+  status: 'created' | 'starting' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed' | 'browser_ready'
   created_at: string
   updated_at: string
   total_requests: number
@@ -153,6 +169,11 @@ export const crawlerApi = {
   // 停止爬虫
   stopCrawler: async (sessionId: string): Promise<void> => {
     await apiClient.post(`/crawler/stop/${sessionId}`)
+  },
+
+  // 手动开始录制（用于手动控制模式）
+  startManualRecording: async (sessionId: string): Promise<void> => {
+    await apiClient.post(`/crawler/start-recording/${sessionId}`)
   },
 
   // 获取爬虫状态

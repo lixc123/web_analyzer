@@ -376,6 +376,19 @@ const SettingsPage: React.FC = () => {
         <div>
           <Card title="爬虫设置" style={{ marginBottom: 24 }}>
             <Form layout="vertical">
+              <Form.Item 
+                label="Chrome 浏览器路径" 
+                extra="留空则自动查找系统安装的 Chrome，填写后优先使用指定路径"
+              >
+                <Input 
+                  placeholder="例如: C:/Program Files/Google/Chrome/Application/chrome.exe"
+                  defaultValue={localStorage.getItem('chrome_path') || ''}
+                  onChange={(e) => {
+                    localStorage.setItem('chrome_path', e.target.value)
+                  }}
+                />
+              </Form.Item>
+
               <Row gutter={24}>
                 <Col span={12}>
                   <Form.Item label="默认超时时间 (秒)">

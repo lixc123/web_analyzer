@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 from .browser_manager import BrowserManager
-from .js_hooks import JS_HOOK_SCRIPT
+from .js_hooks import JS_HOOK_SCRIPT, generate_hook_script
 from .resource_archiver import ResourceArchiver
 from models.request_record import RequestRecord
 
@@ -32,10 +32,27 @@ class NetworkRecorder:
         self._config = config or {}
         self._screenshot_enabled = self._config.get('capture_screenshots', False)
         
+        # Hook 选项配置 - 处理可能的 None 或空值情况
+        hook_opts = self._config.get('hook_options')
+        if hook_opts is None:
+            self._hook_options = {'network': True}  # 默认只开启网络请求
+        elif isinstance(hook_opts, dict):
+            self._hook_options = hook_opts
+        else:
+            # 可能是 Pydantic 模型对象，尝试转换
+            self._hook_options = dict(hook_opts) if hasattr(hook_opts, '__iter__') else {'network': True}
+        
         if self._screenshot_enabled:
             self._log("[OK] 截图功能已启用")
         else:
             self._log("[INFO] 截图功能已禁用（用户未勾选）")
+        
+        # 记录启用的 Hook 模块
+        enabled_hooks = [k for k, v in self._hook_options.items() if v]
+        if enabled_hooks:
+            self._log(f"[INFO] 启用的 Hook 模块: {', '.join(enabled_hooks)}")
+        else:
+            self._log("[INFO] 未启用任何 JS Hook（纯 CDP 监听模式）")
 
     @property
     def is_recording(self) -> bool:
@@ -293,12 +310,18 @@ class NetworkRecorder:
             page = await browser_context.new_page()
             print("[OK] 新页面已创建")
 
+        # 根据配置动态生成 Hook 脚本
         try:
             target_page = getattr(page, "async_page", page)
             if hasattr(target_page, "add_init_script"):
-                await target_page.add_init_script(JS_HOOK_SCRIPT)
-        except Exception:
-            pass
+                hook_script = generate_hook_script(self._hook_options)
+                if hook_script:
+                    await target_page.add_init_script(hook_script)
+                    self._log("[OK] JS Hook 脚本已注入")
+                else:
+                    self._log("[INFO] 未注入 JS Hook（纯 CDP 监听模式）")
+        except Exception as e:
+            self._log(f"[WARNING] JS Hook 注入失败: {e}")
         
         # 设置页面到browser_manager（需要处理包装器）
         if hasattr(page, 'sync_page'):

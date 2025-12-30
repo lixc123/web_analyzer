@@ -1,8 +1,8 @@
-JS_HOOK_SCRIPT = """
-// ============================================
-// Web Analyzer V2 - 综合浏览器数据录制钩子
-// ============================================
+# JS Hook 脚本模块化生成器
+# 根据用户配置动态生成需要的 Hook 代码
 
+# 基础框架代码
+JS_HOOK_BASE = """
 (function() {
     'use strict';
     
@@ -14,9 +14,12 @@ JS_HOOK_SCRIPT = """
             ...data
         }));
     };
+"""
 
+# 网络请求拦截模块 (fetch/XHR)
+JS_HOOK_NETWORK = """
     // ============================================
-    // 1. 网络请求拦截（增强版）
+    // 网络请求拦截（Fetch + XHR）
     // ============================================
     
     // Fetch API 拦截
@@ -56,7 +59,7 @@ JS_HOOK_SCRIPT = """
         }
     };
 
-    // XMLHttpRequest 拦截（增强版）
+    // XMLHttpRequest 拦截
     const originalXHROpen = XMLHttpRequest.prototype.open;
     const originalXHRSend = XMLHttpRequest.prototype.send;
     const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
@@ -109,102 +112,74 @@ JS_HOOK_SCRIPT = """
         }
         return originalXHRSend.call(this, body);
     };
+"""
 
+# 存储拦截模块 (localStorage/sessionStorage/IndexedDB)
+JS_HOOK_STORAGE = """
     // ============================================
-    // 2. 浏览器存储数据拦截
+    // 浏览器存储数据拦截
     // ============================================
     
     // localStorage 拦截
     const originalLocalStorage = {
         setItem: localStorage.setItem,
-        getItem: localStorage.getItem,
         removeItem: localStorage.removeItem,
         clear: localStorage.clear
     };
     
     localStorage.setItem = function(key, value) {
-        logEvent('LOCALSTORAGE_SET', {
-            key: key,
-            value: value,
-            stack: getStack()
-        });
+        logEvent('LOCALSTORAGE_SET', { key: key, value: value, stack: getStack() });
         return originalLocalStorage.setItem.call(this, key, value);
     };
     
     localStorage.removeItem = function(key) {
-        logEvent('LOCALSTORAGE_REMOVE', {
-            key: key,
-            stack: getStack()
-        });
+        logEvent('LOCALSTORAGE_REMOVE', { key: key, stack: getStack() });
         return originalLocalStorage.removeItem.call(this, key);
     };
     
     localStorage.clear = function() {
-        logEvent('LOCALSTORAGE_CLEAR', {
-            stack: getStack()
-        });
+        logEvent('LOCALSTORAGE_CLEAR', { stack: getStack() });
         return originalLocalStorage.clear.call(this);
     };
     
     // sessionStorage 拦截
     const originalSessionStorage = {
         setItem: sessionStorage.setItem,
-        getItem: sessionStorage.getItem,
         removeItem: sessionStorage.removeItem,
         clear: sessionStorage.clear
     };
     
     sessionStorage.setItem = function(key, value) {
-        logEvent('SESSIONSTORAGE_SET', {
-            key: key,
-            value: value,
-            stack: getStack()
-        });
+        logEvent('SESSIONSTORAGE_SET', { key: key, value: value, stack: getStack() });
         return originalSessionStorage.setItem.call(this, key, value);
     };
     
     sessionStorage.removeItem = function(key) {
-        logEvent('SESSIONSTORAGE_REMOVE', {
-            key: key,
-            stack: getStack()
-        });
+        logEvent('SESSIONSTORAGE_REMOVE', { key: key, stack: getStack() });
         return originalSessionStorage.removeItem.call(this, key);
     };
     
     sessionStorage.clear = function() {
-        logEvent('SESSIONSTORAGE_CLEAR', {
-            stack: getStack()
-        });
+        logEvent('SESSIONSTORAGE_CLEAR', { stack: getStack() });
         return originalSessionStorage.clear.call(this);
     };
 
     // IndexedDB 拦截
-    const originalIndexedDB = {
-        open: indexedDB.open,
-        deleteDatabase: indexedDB.deleteDatabase
-    };
-    
+    const originalIndexedDBOpen = indexedDB.open;
     indexedDB.open = function(name, version) {
-        logEvent('INDEXEDDB_OPEN', {
-            databaseName: name,
-            version: version,
-            stack: getStack()
-        });
-        
-        const request = originalIndexedDB.open.call(this, name, version);
-        
+        logEvent('INDEXEDDB_OPEN', { databaseName: name, version: version, stack: getStack() });
+        const request = originalIndexedDBOpen.call(this, name, version);
         request.addEventListener('success', (event) => {
-            logEvent('INDEXEDDB_OPENED', {
-                databaseName: name,
-                version: event.target.result.version
-            });
+            logEvent('INDEXEDDB_OPENED', { databaseName: name, version: event.target.result.version });
         });
-        
         return request;
     };
+"""
 
+# 用户交互跟踪模块
+JS_HOOK_USER_INTERACTION = """
     // ============================================
-    // 3. 用户交互事件跟踪
+    // 用户交互事件跟踪
     // ============================================
     
     const trackUserInteraction = (eventType) => {
@@ -217,17 +192,13 @@ JS_HOOK_SCRIPT = """
                     className: event.target.className,
                     innerText: event.target.innerText?.substring(0, 100)
                 },
-                coordinates: {
-                    x: event.clientX,
-                    y: event.clientY
-                },
+                coordinates: { x: event.clientX, y: event.clientY },
                 url: window.location.href,
                 stack: getStack()
             });
         };
     };
     
-    // 添加交互事件监听器
     ['click', 'dblclick', 'mousedown', 'mouseup', 'keydown', 'keyup', 'input', 'change', 'submit'].forEach(eventType => {
         document.addEventListener(eventType, trackUserInteraction(eventType), true);
     });
@@ -246,9 +217,12 @@ JS_HOOK_SCRIPT = """
             scrollTimeout = null;
         }, 200);
     }, true);
+"""
 
+# 表单数据跟踪模块
+JS_HOOK_FORM = """
     // ============================================
-    // 4. 表单数据跟踪
+    // 表单数据跟踪
     // ============================================
     
     document.addEventListener('input', function(event) {
@@ -270,7 +244,6 @@ JS_HOOK_SCRIPT = """
         for (let [key, value] of formData.entries()) {
             formValues[key] = typeof value === 'string' ? value.substring(0, 100) : '[FILE]';
         }
-        
         logEvent('FORM_SUBMIT', {
             action: event.target.action,
             method: event.target.method,
@@ -278,9 +251,12 @@ JS_HOOK_SCRIPT = """
             stack: getStack()
         });
     }, true);
+"""
 
+# DOM 变化监控模块
+JS_HOOK_DOM = """
     // ============================================
-    // 5. DOM 变化监控
+    // DOM 变化监控
     // ============================================
     
     const domObserver = new MutationObserver((mutations) => {
@@ -293,10 +269,10 @@ JS_HOOK_SCRIPT = """
                         id: mutation.target.id,
                         className: mutation.target.className
                     },
-                    addedNodes: Array.from(mutation.addedNodes).map(node => ({
+                    addedNodes: Array.from(mutation.addedNodes).slice(0, 5).map(node => ({
                         nodeType: node.nodeType,
                         tagName: node.tagName,
-                        textContent: node.textContent?.substring(0, 100)
+                        textContent: node.textContent?.substring(0, 50)
                     })),
                     url: window.location.href
                 });
@@ -304,49 +280,39 @@ JS_HOOK_SCRIPT = """
         });
     });
     
-    domObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: false,
-        characterData: false
-    });
+    if (document.body) {
+        domObserver.observe(document.body, { childList: true, subtree: true });
+    }
+"""
 
+# 导航历史跟踪模块
+JS_HOOK_NAVIGATION = """
     // ============================================
-    // 6. 导航历史跟踪
+    // 导航历史跟踪
     // ============================================
     
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
     
     history.pushState = function(state, title, url) {
-        logEvent('HISTORY_PUSH', {
-            state: state,
-            title: title,
-            url: url,
-            stack: getStack()
-        });
+        logEvent('HISTORY_PUSH', { state: state, title: title, url: url, stack: getStack() });
         return originalPushState.call(this, state, title, url);
     };
     
     history.replaceState = function(state, title, url) {
-        logEvent('HISTORY_REPLACE', {
-            state: state,
-            title: title,
-            url: url,
-            stack: getStack()
-        });
+        logEvent('HISTORY_REPLACE', { state: state, title: title, url: url, stack: getStack() });
         return originalReplaceState.call(this, state, title, url);
     };
     
     window.addEventListener('popstate', function(event) {
-        logEvent('HISTORY_POP', {
-            state: event.state,
-            url: window.location.href
-        });
+        logEvent('HISTORY_POP', { state: event.state, url: window.location.href });
     });
+"""
 
+# Console 日志拦截模块
+JS_HOOK_CONSOLE = """
     // ============================================
-    // 7. Console 日志增强拦截
+    // Console 日志拦截
     // ============================================
     
     const originalConsole = {
@@ -359,6 +325,11 @@ JS_HOOK_SCRIPT = """
     
     Object.keys(originalConsole).forEach(method => {
         console[method] = function(...args) {
+            // 避免递归：不记录我们自己的日志
+            const firstArg = args[0];
+            if (typeof firstArg === 'string' && firstArg.startsWith('[WEB_RECORDER_')) {
+                return originalConsole[method].apply(this, args);
+            }
             logEvent('CONSOLE_OUTPUT', {
                 level: method,
                 args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)),
@@ -367,24 +338,29 @@ JS_HOOK_SCRIPT = """
             return originalConsole[method].apply(this, args);
         };
     });
+"""
 
+# 性能数据监控模块
+JS_HOOK_PERFORMANCE = """
     // ============================================
-    // 8. 性能数据监控
+    // 性能数据监控
     // ============================================
     
     window.addEventListener('load', function() {
         setTimeout(() => {
             const perfData = performance.getEntriesByType('navigation')[0];
-            logEvent('PERFORMANCE_NAVIGATION', {
-                loadEventEnd: perfData.loadEventEnd,
-                domContentLoadedEventEnd: perfData.domContentLoadedEventEnd,
-                responseEnd: perfData.responseEnd,
-                domComplete: perfData.domComplete,
-                url: window.location.href
-            });
+            if (perfData) {
+                logEvent('PERFORMANCE_NAVIGATION', {
+                    loadEventEnd: perfData.loadEventEnd,
+                    domContentLoadedEventEnd: perfData.domContentLoadedEventEnd,
+                    responseEnd: perfData.responseEnd,
+                    domComplete: perfData.domComplete,
+                    url: window.location.href
+                });
+            }
             
             const resourceEntries = performance.getEntriesByType('resource');
-            resourceEntries.forEach(entry => {
+            resourceEntries.slice(0, 50).forEach(entry => {
                 logEvent('PERFORMANCE_RESOURCE', {
                     name: entry.name,
                     duration: entry.duration,
@@ -395,57 +371,81 @@ JS_HOOK_SCRIPT = """
             });
         }, 1000);
     });
+"""
 
-    // ============================================
-    // 9. 初始化数据快照
-    // ============================================
-    
-    // 页面加载时记录初始状态
-    window.addEventListener('DOMContentLoaded', function() {
-        // 记录初始 localStorage
-        const localStorageData = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            localStorageData[key] = localStorage.getItem(key);
-        }
-        logEvent('INITIAL_LOCALSTORAGE', localStorageData);
-        
-        // 记录初始 sessionStorage
-        const sessionStorageData = {};
-        for (let i = 0; i < sessionStorage.length; i++) {
-            const key = sessionStorage.key(i);
-            sessionStorageData[key] = sessionStorage.getItem(key);
-        }
-        logEvent('INITIAL_SESSIONSTORAGE', sessionStorageData);
-        
-        // 记录页面基本信息
-        logEvent('PAGE_INFO', {
-            url: window.location.href,
-            title: document.title,
-            referrer: document.referrer,
-            userAgent: navigator.userAgent,
-            viewport: {
-                width: window.innerWidth,
-                height: window.innerHeight
-            }
-        });
-    });
-
-    // 定期记录 DOM 快照（简化版）
-    setInterval(() => {
-        logEvent('DOM_SNAPSHOT', {
-            url: window.location.href,
-            title: document.title,
-            bodyHTML: document.body?.innerHTML?.length || 0, // 只记录长度，避免过大
-            forms: Array.from(document.forms).map(form => ({
-                id: form.id,
-                action: form.action,
-                method: form.method,
-                elements: form.elements.length
-            }))
-        });
-    }, 30000); // 每30秒记录一次
-
-    console.log('[WEB_RECORDER_INITIALIZED]', 'Comprehensive browser data recording is active');
+# 结束代码
+JS_HOOK_END = """
+    console.log('[WEB_RECORDER_INITIALIZED]', 'Browser data recording is active');
 })();
 """
+
+# 默认完整脚本（向后兼容）
+JS_HOOK_SCRIPT = (
+    JS_HOOK_BASE +
+    JS_HOOK_NETWORK +
+    JS_HOOK_STORAGE +
+    JS_HOOK_USER_INTERACTION +
+    JS_HOOK_FORM +
+    JS_HOOK_DOM +
+    JS_HOOK_NAVIGATION +
+    JS_HOOK_CONSOLE +
+    JS_HOOK_PERFORMANCE +
+    JS_HOOK_END
+)
+
+
+def generate_hook_script(options: dict = None) -> str:
+    """
+    根据配置选项生成 JS Hook 脚本
+    
+    Args:
+        options: Hook 选项字典，包含以下键：
+            - network: 网络请求拦截 (fetch/XHR)
+            - storage: 存储拦截 (localStorage/sessionStorage/IndexedDB)
+            - userInteraction: 用户交互跟踪
+            - form: 表单数据跟踪
+            - dom: DOM变化监控
+            - navigation: 导航历史跟踪
+            - console: Console日志拦截
+            - performance: 性能数据监控
+    
+    Returns:
+        生成的 JS Hook 脚本字符串
+    """
+    if options is None:
+        # 默认只开启网络请求
+        options = {'network': True}
+    
+    # 检查是否所有选项都关闭
+    if not any(options.values()):
+        return ""  # 不注入任何脚本
+    
+    script_parts = [JS_HOOK_BASE]
+    
+    if options.get('network', False):
+        script_parts.append(JS_HOOK_NETWORK)
+    
+    if options.get('storage', False):
+        script_parts.append(JS_HOOK_STORAGE)
+    
+    if options.get('userInteraction', False):
+        script_parts.append(JS_HOOK_USER_INTERACTION)
+    
+    if options.get('form', False):
+        script_parts.append(JS_HOOK_FORM)
+    
+    if options.get('dom', False):
+        script_parts.append(JS_HOOK_DOM)
+    
+    if options.get('navigation', False):
+        script_parts.append(JS_HOOK_NAVIGATION)
+    
+    if options.get('console', False):
+        script_parts.append(JS_HOOK_CONSOLE)
+    
+    if options.get('performance', False):
+        script_parts.append(JS_HOOK_PERFORMANCE)
+    
+    script_parts.append(JS_HOOK_END)
+    
+    return ''.join(script_parts)
