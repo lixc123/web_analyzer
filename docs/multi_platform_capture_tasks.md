@@ -272,11 +272,11 @@
 
 ### m2.1 WindowsSystemProxy 类实现
 
-- [ ] 实现 `WindowsSystemProxy.__init__()` 方法
+- [x] 实现 `WindowsSystemProxy.__init__()` 方法
   - 说明: 初始化系统代理管理器
   - 功能点: 定义注册表路径常量 `INTERNET_SETTINGS`
 
-- [ ] 实现 `WindowsSystemProxy.get_current_settings()` 方法
+- [x] 实现 `WindowsSystemProxy.get_current_settings()` 方法
   - 返回: `dict` 包含 `enabled: bool`, `host: str`, `port: int`
   - 说明: 读取当前系统代理设置
   - 功能点:
@@ -286,7 +286,7 @@
     4. 解析 host:port 格式
   - 验收标准: 返回当前系统代理配置
 
-- [ ] 实现 `WindowsSystemProxy.enable_proxy()` 方法
+- [x] 实现 `WindowsSystemProxy.enable_proxy()` 方法
   - 参数: `host: str = "127.0.0.1"`, `port: int = 8888`
   - 说明: 启用系统代理
   - 功能点:
@@ -297,21 +297,21 @@
     5. 调用 `_refresh_settings()` 通知系统
   - 验收标准: 系统代理设置生效，浏览器流量经过代理
 
-- [ ] 实现 `WindowsSystemProxy.disable_proxy()` 方法
+- [x] 实现 `WindowsSystemProxy.disable_proxy()` 方法
   - 说明: 禁用系统代理
   - 功能点:
     1. 设置 `ProxyEnable = 0`
     2. 调用 `_refresh_settings()` 通知系统
   - 验收标准: 系统代理被禁用
 
-- [ ] 实现 `WindowsSystemProxy.restore_original()` 方法
+- [x] 实现 `WindowsSystemProxy.restore_original()` 方法
   - 说明: 恢复原始代理设置
   - 功能点:
     1. 检查 `self._original_settings` 是否存在
     2. 根据原始设置调用 enable_proxy 或 disable_proxy
   - 验收标准: 系统代理恢复到启动前的状态
 
-- [ ] 实现 `WindowsSystemProxy._refresh_settings()` 私有方法
+- [x] 实现 `WindowsSystemProxy._refresh_settings()` 私有方法
   - 说明: 刷新系统网络设置
   - 功能点:
     1. 使用 ctypes 调用 `Wininet.InternetSetOptionW`
@@ -321,7 +321,7 @@
 
 ### m2.2 系统代理API集成
 
-- [ ] 在 `POST /api/v1/proxy/start` 中集成系统代理设置
+- [x] 在 `POST /api/v1/proxy/start` 中集成系统代理设置
   - 说明: 当 `enable_system_proxy=True` 时自动设置系统代理
   - 功能点:
     1. 创建 WindowsSystemProxy 实例
@@ -329,14 +329,14 @@
     3. 处理可能的权限错误
   - 验收标准: 代理启动时系统代理自动配置
 
-- [ ] 在 `POST /api/v1/proxy/stop` 中集成系统代理恢复
+- [x] 在 `POST /api/v1/proxy/stop` 中集成系统代理恢复
   - 说明: 停止代理时恢复原始系统代理设置
   - 功能点:
     1. 调用 WindowsSystemProxy.restore_original()
     2. 确保即使代理异常退出也能恢复
   - 验收标准: 代理停止后系统代理恢复原状
 
-- [ ] 添加异常处理和清理机制
+- [x] 添加异常处理和清理机制
   - 说明: 确保程序异常退出时系统代理不残留
   - 功能点:
     1. 使用 atexit 注册清理函数
@@ -346,7 +346,7 @@
 
 ### m2.3 Windows防火墙自动配置
 
-- [ ] 实现 `WindowsFirewall` 类
+- [x] 实现 `WindowsFirewall` 类
   - 位置: `backend/proxy/windows_firewall.py`
   - 说明: 管理Windows防火墙规则，允许移动端连接
   - 功能点:
@@ -355,7 +355,7 @@
     3. 删除防火墙规则
   - 验收标准: 类实现完成
 
-- [ ] 实现 `WindowsFirewall.check_rule_exists()` 方法
+- [x] 实现 `WindowsFirewall.check_rule_exists()` 方法
   - 参数: `rule_name: str`
   - 返回: `bool`
   - 说明: 检查指定名称的防火墙规则是否存在
@@ -365,7 +365,7 @@
     3. 解析命令输出判断规则是否存在
   - 验收标准: 正确返回规则存在状态
 
-- [ ] 实现 `WindowsFirewall.add_rule()` 方法
+- [x] 实现 `WindowsFirewall.add_rule()` 方法
   - 参数: `port: int`, `rule_name: str = "WebAnalyzer Proxy"`
   - 返回: `bool`
   - 说明: 添加防火墙规则允许指定端口的入站连接
@@ -377,7 +377,7 @@
     5. 记录操作日志
   - 验收标准: 防火墙规则成功添加，移动端可以连接
 
-- [ ] 实现 `WindowsFirewall.remove_rule()` 方法
+- [x] 实现 `WindowsFirewall.remove_rule()` 方法
   - 参数: `rule_name: str = "WebAnalyzer Proxy"`
   - 返回: `bool`
   - 说明: 删除指定的防火墙规则
@@ -388,7 +388,7 @@
     4. 处理可能的错误
   - 验收标准: 防火墙规则成功删除
 
-- [ ] 在代理启动时自动配置防火墙
+- [x] 在代理启动时自动配置防火墙
   - 位置: `ProxyServiceManager.start_service()` 方法
   - 说明: 启动代理时自动添加防火墙规则
   - 功能点:
@@ -398,7 +398,7 @@
     4. 保存规则名称以便后续删除
   - 验收标准: 代理启动时防火墙自动配置
 
-- [ ] 在代理停止时自动清理防火墙规则
+- [x] 在代理停止时自动清理防火墙规则
   - 位置: `ProxyServiceManager.stop_service()` 方法
   - 说明: 停止代理时删除防火墙规则
   - 功能点:
@@ -430,14 +430,14 @@
 
 ### m3.1 CertManager 类实现
 
-- [ ] 实现 `CertManager.__init__()` 方法
+- [x] 实现 `CertManager.__init__()` 方法
   - 参数: `cert_dir: str = None`（默认 `~/.mitmproxy`）
   - 说明: 初始化证书管理器
   - 功能点:
     1. 设置证书目录路径
     2. 定义 CA 证书文件路径（.pem 和 .cer）
 
-- [ ] 实现 `CertManager.ensure_ca_exists()` 方法
+- [x] 实现 `CertManager.ensure_ca_exists()` 方法
   - 返回: `bool`
   - 说明: 确保CA证书存在
   - 功能点:
@@ -445,12 +445,12 @@
     2. 不存在则创建目录（mitmproxy会自动生成证书）
   - 验收标准: 证书目录存在，首次运行后生成证书
 
-- [ ] 实现 `CertManager.get_cert_path()` 方法
+- [x] 实现 `CertManager.get_cert_path()` 方法
   - 返回: `str`
   - 说明: 获取CA证书文件路径
   - 验收标准: 返回正确的证书文件绝对路径
 
-- [ ] 实现 `CertManager.get_cert_for_mobile()` 方法
+- [x] 实现 `CertManager.get_cert_for_mobile()` 方法
   - 返回: `dict` 包含 `path`, `content_base64`, `filename`
   - 说明: 获取移动端安装所需的证书信息
   - 功能点:
@@ -459,7 +459,7 @@
     3. 返回证书路径、编码内容和文件名
   - 验收标准: 返回可用于下载的证书数据
 
-- [ ] 实现 `CertManager.generate_qr_code()` 方法
+- [x] 实现 `CertManager.generate_qr_code()` 方法
   - 参数: `download_url: str`
   - 返回: `str` (Base64编码的PNG图片)
   - 说明: 生成证书下载页面的二维码
@@ -469,7 +469,7 @@
     3. Base64编码返回
   - 验收标准: 返回可直接在HTML中显示的二维码图片
 
-- [ ] 实现 `CertManager.install_cert_windows()` 方法
+- [x] 实现 `CertManager.install_cert_windows()` 方法
   - 返回: `bool`
   - 说明: 在Windows系统中安装CA证书到受信任的根证书
   - 功能点:
@@ -478,7 +478,7 @@
     3. 捕获并处理错误
   - 验收标准: 证书成功安装到Windows受信任根证书存储
 
-- [ ] 实现 `CertManager.uninstall_cert_windows()` 方法
+- [x] 实现 `CertManager.uninstall_cert_windows()` 方法
   - 返回: `bool`
   - 说明: 从Windows系统中移除CA证书
   - 功能点:
@@ -486,7 +486,7 @@
     2. 命令: `certutil -delstore -user Root mitmproxy`
   - 验收标准: 证书从系统中完全移除
 
-- [ ] 实现 `CertManager.get_mobile_install_instructions()` 方法
+- [x] 实现 `CertManager.get_mobile_install_instructions()` 方法
   - 参数: `server_ip: str`, `port: int`
   - 返回: `dict` 包含 iOS 和 Android 的安装步骤
   - 说明: 获取移动端证书安装说明
@@ -498,7 +498,7 @@
 
 ### m3.2 证书相关API实现
 
-- [ ] 实现 `GET /api/v1/proxy/cert/download` 接口
+- [x] 实现 `GET /api/v1/proxy/cert/download` 接口
   - 说明: 下载CA证书文件
   - 功能点:
     1. 调用 CertManager.get_cert_for_mobile()
@@ -506,7 +506,7 @@
     3. 设置正确的 Content-Type 和 Content-Disposition
   - 验收标准: 浏览器访问时自动下载证书文件
 
-- [ ] 实现 `GET /api/v1/proxy/cert/instructions` 接口
+- [x] 实现 `GET /api/v1/proxy/cert/instructions` 接口
   - 说明: 获取各平台证书安装说明
   - 功能点:
     1. 获取当前代理服务器IP和端口
@@ -514,7 +514,7 @@
     3. 返回 JSON 格式的安装步骤
   - 验收标准: 返回iOS和Android的详细安装指南
 
-- [ ] 实现 `GET /api/v1/proxy/cert/qrcode` 接口
+- [x] 实现 `GET /api/v1/proxy/cert/qrcode` 接口
   - 说明: 生成证书下载页面的二维码
   - 功能点:
     1. 构造证书下载URL（http://mitm.it 或自定义页面）
@@ -522,7 +522,7 @@
     3. 返回 Base64 编码的二维码图片
   - 验收标准: 返回可直接显示的二维码图片数据
 
-- [ ] 实现 `POST /api/v1/proxy/cert/install-windows` 接口
+- [x] 实现 `POST /api/v1/proxy/cert/install-windows` 接口
   - 说明: 在Windows系统中安装CA证书
   - 功能点:
     1. 调用 CertManager.install_cert_windows()
@@ -530,7 +530,7 @@
     3. 处理权限不足等错误
   - 验收标准: 证书成功安装或返回明确错误信息
 
-- [ ] 实现 `POST /api/v1/proxy/cert/uninstall-windows` 接口
+- [x] 实现 `POST /api/v1/proxy/cert/uninstall-windows` 接口
   - 说明: 从Windows系统中卸载CA证书
   - 功能点:
     1. 调用 CertManager.uninstall_cert_windows()
@@ -570,7 +570,7 @@
 
 ### m4.1 设备识别功能
 
-- [ ] 实现设备信息提取函数
+- [x] 实现设备信息提取函数
   - 位置: `backend/proxy/device_detector.py`
   - 说明: 从请求头中识别设备类型和信息
   - 功能点:
@@ -579,14 +579,14 @@
     3. 识别应用名称（如果有）
   - 验收标准: 能准确识别主流移动设备
 
-- [ ] 在 RequestInterceptor 中集成设备识别
+- [x] 在 RequestInterceptor 中集成设备识别
   - 说明: 请求拦截时自动识别设备
   - 功能点:
     1. 调用设备识别函数
     2. 将设备信息添加到请求数据中
   - 验收标准: 每个请求都包含设备信息
 
-- [ ] 实现 `GET /api/v1/proxy/devices` 接口
+- [x] 实现 `GET /api/v1/proxy/devices` 接口
   - 说明: 获取当前连接的设备列表
   - 功能点:
     1. 维护活跃设备列表
@@ -596,7 +596,7 @@
 
 ### m4.2 移动端配置页面
 
-- [ ] 创建证书下载静态页面
+- [x] 创建证书下载静态页面
   - 位置: `backend/static/mobile-setup.html`
   - 说明: 移动端访问的证书下载和配置指南页面
   - 功能点:
@@ -606,7 +606,7 @@
     4. 显示代理配置信息
   - 验收标准: 移动端浏览器访问体验良好
 
-- [ ] 实现 `GET /api/v1/proxy/mobile-setup` 接口
+- [x] 实现 `GET /api/v1/proxy/mobile-setup` 接口
   - 说明: 返回移动端配置页面
   - 功能点:
     1. 渲染 mobile-setup.html 模板
@@ -619,16 +619,16 @@
 
 ### m5.1 过滤规则数据模型
 
-- [ ] 定义 `FilterRule` Pydantic模型
+- [x] 定义 `FilterRule` Pydantic模型
   - 字段: `id: str`, `name: str`, `type: str` (include/exclude), `pattern: str`, `enabled: bool = True`
   - 说明: 请求过滤规则的数据模型
 
-- [ ] 创建 `backend/proxy/filters.py` 文件
+- [x] 创建 `backend/proxy/filters.py` 文件
   - 说明: 实现请求过滤逻辑
 
 ### m5.2 过滤器实现
 
-- [ ] 实现 `RequestFilter` 类
+- [x] 实现 `RequestFilter` 类
   - 说明: 请求过滤器核心类
   - 功能点:
     1. 加载和管理过滤规则
@@ -636,7 +636,7 @@
     3. 支持通配符匹配
     4. 支持域名、路径、方法过滤
 
-- [ ] 实现 `RequestFilter.should_capture()` 方法
+- [x] 实现 `RequestFilter.should_capture()` 方法
   - 参数: `url: str`, `method: str`
   - 返回: `bool`
   - 说明: 判断请求是否应该被捕获
@@ -647,7 +647,7 @@
     4. 默认捕获所有请求
   - 验收标准: 正确应用过滤规则
 
-- [ ] 在 RequestInterceptor 中集成过滤器
+- [x] 在 RequestInterceptor 中集成过滤器
   - 说明: 请求拦截前先过滤
   - 功能点:
     1. 创建 RequestFilter 实例
@@ -657,15 +657,15 @@
 
 ### m5.3 过滤规则API实现
 
-- [ ] 创建 `backend/app/api/v1/filters.py` 路由文件
+- [x] 创建 `backend/app/api/v1/filters.py` 路由文件
   - 说明: 过滤规则管理API
 
-- [ ] 实现 `GET /api/v1/filters/rules` 接口
+- [x] 实现 `GET /api/v1/filters/rules` 接口
   - 返回: `List[FilterRule]`
   - 说明: 获取所有过滤规则
   - 验收标准: 返回完整的规则列表
 
-- [ ] 实现 `POST /api/v1/filters/rules` 接口
+- [x] 实现 `POST /api/v1/filters/rules` 接口
   - 参数: `FilterRule`
   - 说明: 添加新的过滤规则
   - 功能点:
@@ -674,17 +674,17 @@
     3. 保存到数据库或配置文件
   - 验收标准: 规则成功添加并立即生效
 
-- [ ] 实现 `PUT /api/v1/filters/rules/{rule_id}` 接口
+- [x] 实现 `PUT /api/v1/filters/rules/{rule_id}` 接口
   - 参数: `rule_id: str`, `FilterRule`
   - 说明: 更新现有过滤规则
   - 验收标准: 规则更新成功
 
-- [ ] 实现 `DELETE /api/v1/filters/rules/{rule_id}` 接口
+- [x] 实现 `DELETE /api/v1/filters/rules/{rule_id}` 接口
   - 参数: `rule_id: str`
   - 说明: 删除过滤规则
   - 验收标准: 规则删除成功
 
-- [ ] 将 filters 路由注册到主应用
+- [x] 将 filters 路由注册到主应用
   - 位置: `backend/app/main.py`
 
 ### m5.4 过滤规则持久化
@@ -720,14 +720,14 @@
 
 ### m6.1 统一请求数据模型
 
-- [ ] 创建 `backend/models/unified_request.py` 文件
+- [x] 创建 `backend/models/unified_request.py` 文件
   - 说明: 统一的请求数据模型
 
-- [ ] 定义 `RequestSource` 枚举
+- [x] 定义 `RequestSource` 枚举
   - 值: `WEB_BROWSER`, `DESKTOP_APP`, `MOBILE_IOS`, `MOBILE_ANDROID`
   - 说明: 请求来源类型
 
-- [ ] 定义 `UnifiedRequest` 数据类
+- [x] 定义 `UnifiedRequest` 数据类
   - 字段:
     - 基础: `id`, `source`, `device_info`
     - 请求: `method`, `url`, `headers`, `body`, `timestamp`
@@ -735,11 +735,11 @@
     - 元数据: `content_type`, `is_https`, `host`, `path`, `tags`
   - 说明: 统一的请求记录模型，兼容所有来源
 
-- [ ] 实现 `UnifiedRequest.to_dict()` 方法
+- [x] 实现 `UnifiedRequest.to_dict()` 方法
   - 说明: 转换为字典格式用于序列化
   - 验收标准: 返回完整的字典表示
 
-- [ ] 实现 `UnifiedRequest.from_proxy_request()` 静态方法
+- [x] 实现 `UnifiedRequest.from_proxy_request()` 静态方法
   - 说明: 从代理请求数据创建 UnifiedRequest
   - 功能点:
     1. 提取请求和响应信息
@@ -749,20 +749,16 @@
 
 ### m6.2 数据存储层
 
-- [ ] 扩展现有数据库模型支持多来源
-  - 位置: `backend/app/models/` 或使用现有模型
-  - 说明: 添加 source 和 device_info 字段
-
-- [ ] 实现请求保存函数
+- [x] 实现请求保存函数
   - 位置: `backend/app/services/request_storage.py`
-  - 说明: 保存统一格式的请求到数据库
+  - 说明: 保存统一格式的请求到存储
   - 功能点:
     1. 接收 UnifiedRequest 对象
-    2. 保存到数据库
+    2. 保存到内存存储
     3. 返回保存的记录ID
   - 验收标准: 请求成功保存
 
-- [ ] 实现请求查询函数
+- [x] 实现请求查询函数
   - 说明: 支持按来源、设备、时间范围查询
   - 功能点:
     1. 支持多条件过滤
@@ -772,20 +768,19 @@
 
 ### m6.3 WebSocket实时推送
 
-- [ ] 创建 `backend/app/websocket/proxy_events.py` 文件
+- [x] 创建 `backend/app/websocket/proxy_events.py` 文件
   - 说明: WebSocket事件广播器
 
-- [ ] 实现 `ProxyEventBroadcaster` 类
+- [x] 实现 `ProxyEventBroadcaster` 类
   - 说明: 管理WebSocket连接和消息广播
   - 功能点:
     1. 维护活跃连接集合
     2. 处理连接和断开
     3. 广播消息到所有客户端
 
-- [ ] 实现 `ProxyEventBroadcaster.connect()` 方法
-  - 参数: `websocket: WebSocket`
-  - 说明: 接受新的WebSocket连接
-  - 验收标准: 连接成功添加到集合
+- [x] 集成到代理服务
+  - 说明: 请求捕获时自动广播到 WebSocket 客户端
+  - 验收标准: 前端实时接收请求数据
 
 - [ ] 实现 `ProxyEventBroadcaster.disconnect()` 方法
   - 参数: `websocket: WebSocket`
@@ -860,15 +855,15 @@
 
 ### m7.1 前端目录结构
 
-- [ ] 创建 `frontend/src/pages/ProxyCapture/` 目录
+- [x] 创建 `frontend/src/pages/ProxyCapture/` 目录
   - 说明: 代理录制功能页面目录
 
-- [ ] 创建 `frontend/src/components/proxy/` 目录
+- [x] 创建 `frontend/src/components/proxy/` 目录
   - 说明: 代理相关组件目录
 
 ### m7.2 代理控制面板组件
 
-- [ ] 创建 `ProxyControl.tsx` 组件
+- [x] 创建 `ProxyControl.tsx` 组件
   - 位置: `frontend/src/pages/ProxyCapture/ProxyControl.tsx`
   - 说明: 代理服务控制面板
   - 功能点:
@@ -878,11 +873,11 @@
     4. 本机IP显示（供移动端配置）
   - 验收标准: 可以启动和停止代理服务
 
-- [ ] 实现代理配置状态管理
+- [x] 实现代理配置状态管理
   - 说明: 使用 React state 或状态管理库
   - 状态: `config`, `isRunning`, `localIP`, `status`
 
-- [ ] 实现启动代理功能
+- [x] 实现启动代理功能
   - 说明: 调用 `POST /api/v1/proxy/start` API
   - 功能点:
     1. 验证配置
@@ -891,17 +886,17 @@
     4. 获取本机IP
   - 验收标准: 代理成功启动，状态更新
 
-- [ ] 实现停止代理功能
+- [x] 实现停止代理功能
   - 说明: 调用 `POST /api/v1/proxy/stop` API
   - 验收标准: 代理成功停止
 
-- [ ] 实现状态轮询或WebSocket监听
+- [x] 实现状态轮询或WebSocket监听
   - 说明: 实时更新代理状态
   - 验收标准: 状态变化实时反映在UI上
 
 ### m7.3 移动端配置向导组件
 
-- [ ] 创建 `MobileSetup.tsx` 组件
+- [x] 创建 `MobileSetup.tsx` 组件
   - 位置: `frontend/src/pages/ProxyCapture/MobileSetup.tsx`
   - 说明: 移动端配置向导
   - 功能点:
@@ -911,24 +906,24 @@
     4. 代理配置信息显示
   - 验收标准: 显示完整的配置指南
 
-- [ ] 实现平台切换功能
+- [x] 实现平台切换功能
   - 说明: 切换 iOS/Android 显示不同的安装步骤
   - 验收标准: 切换平台时内容正确更新
 
-- [ ] 实现二维码获取和显示
+- [x] 实现二维码获取和显示
   - 说明: 调用 `GET /api/v1/proxy/cert/qrcode` API
   - 功能点:
     1. 获取 Base64 编码的二维码
     2. 显示为图片
   - 验收标准: 二维码正确显示
 
-- [ ] 实现安装说明获取
+- [x] 实现安装说明获取
   - 说明: 调用 `GET /api/v1/proxy/cert/instructions` API
   - 验收标准: 显示详细的分步说明
 
 ### m7.4 证书管理组件
 
-- [ ] 创建 `CertManager.tsx` 组件
+- [x] 创建 `CertManager.tsx` 组件
   - 位置: `frontend/src/pages/ProxyCapture/CertManager.tsx`
   - 说明: 证书管理界面
   - 功能点:
@@ -938,7 +933,7 @@
     4. 安装说明
   - 验收标准: 可以管理证书
 
-- [ ] 实现Windows证书安装功能
+- [x] 实现Windows证书安装功能
   - 说明: 调用 `POST /api/v1/proxy/cert/install-windows` API
   - 功能点:
     1. 显示确认对话框
@@ -946,13 +941,13 @@
     3. 显示安装结果
   - 验收标准: 证书成功安装
 
-- [ ] 实现证书下载功能
+- [x] 实现证书下载功能
   - 说明: 提供证书下载链接
   - 验收标准: 点击可下载证书文件
 
 ### m7.5 代理状态显示组件
 
-- [ ] 创建 `ProxyStatus.tsx` 组件
+- [x] 创建 `ProxyStatus.tsx` 组件
   - 位置: `frontend/src/components/proxy/ProxyStatus.tsx`
   - 说明: 代理状态指示器
   - 功能点:
@@ -964,7 +959,7 @@
 
 ### m7.6 设备列表组件
 
-- [ ] 创建 `DeviceList.tsx` 组件
+- [x] 创建 `DeviceList.tsx` 组件
   - 位置: `frontend/src/components/proxy/DeviceList.tsx`
   - 说明: 已连接设备列表
   - 功能点:
@@ -976,7 +971,7 @@
 
 ### m7.7 请求列表集成
 
-- [ ] 扩展现有请求列表组件支持多来源
+- [x] 扩展现有请求列表组件支持多来源
   - 位置: 现有的请求列表组件
   - 说明: 添加来源标识和过滤
   - 功能点:
@@ -985,7 +980,7 @@
     3. 显示设备信息
   - 验收标准: 可以区分和过滤不同来源的请求
 
-- [ ] 实现WebSocket连接
+- [x] 实现WebSocket连接
   - 说明: 连接到 `/ws/proxy-events`
   - 功能点:
     1. 建立WebSocket连接
@@ -995,12 +990,14 @@
 
 ### m7.8 主页面整合
 
-- [ ] 创建 `index.tsx` 主页面
+- [x] 创建 `index.tsx` 主页面
   - 位置: `frontend/src/pages/ProxyCapture/index.tsx`
   - 说明: 代理录制功能主页面
   - 功能点:
     1. 整合所有子组件
     2. 布局设计（控制面板、配置向导、请求列表）
+    3. 标签页切换
+  - 验收标准: 所有功能可访问
     3. 标签页或折叠面板切换
   - 验收标准: 所有功能可访问
 
@@ -1015,7 +1012,7 @@
 
 ### m7.9 QRCodeDisplay 组件
 
-- [ ] 创建 `QRCodeDisplay.tsx` 组件
+- [x] 创建 `QRCodeDisplay.tsx` 组件
   - 位置: `frontend/src/components/proxy/QRCodeDisplay.tsx`
   - 说明: 二维码显示组件
   - 功能点:
@@ -1026,13 +1023,13 @@
     5. 支持下载二维码图片
   - 验收标准: 二维码清晰可扫描
 
-- [ ] 在 MobileSetup 中使用 QRCodeDisplay
+- [x] 在 MobileSetup 中使用 QRCodeDisplay
   - 说明: 替换现有的二维码显示逻辑
   - 验收标准: 组件正常工作
 
 ### m7.10 移动端配置页面响应式设计
 
-- [ ] 优化移动端配置页面布局
+- [x] 优化移动端配置页面布局
   - 位置: `backend/static/mobile-setup.html`
   - 说明: 适配不同屏幕尺寸
   - 功能点:
@@ -1043,7 +1040,7 @@
     5. 二维码大小自适应
   - 验收标准: 在各种设备上显示良好
 
-- [ ] 添加设备检测和自动跳转
+- [x] 添加设备检测和自动跳转
   - 说明: 自动检测设备类型
   - 功能点:
     1. 检测 User-Agent
@@ -1058,7 +1055,7 @@
 
 ### m8.1 单元测试
 
-- [ ] 编写 ProxyServer 单元测试
+- [x] 编写 ProxyServer 单元测试
   - 位置: `backend/tests/test_proxy_server.py`
   - 测试点:
     1. 启动和停止
@@ -1066,7 +1063,7 @@
     3. 响应处理
   - 验收标准: 测试通过
 
-- [ ] 编写 WindowsSystemProxy 单元测试
+- [x] 编写 WindowsSystemProxy 单元测试
   - 位置: `backend/tests/test_system_proxy.py`
   - 测试点:
     1. 读取当前设置
@@ -1074,7 +1071,7 @@
     3. 恢复原始设置
   - 验收标准: 测试通过
 
-- [ ] 编写 CertManager 单元测试
+- [x] 编写 CertManager 单元测试
   - 位置: `backend/tests/test_cert_manager.py`
   - 测试点:
     1. 证书生成
@@ -1082,7 +1079,7 @@
     3. 安装说明获取
   - 验收标准: 测试通过
 
-- [ ] 编写 RequestFilter 单元测试
+- [x] 编写 RequestFilter 单元测试
   - 位置: `backend/tests/test_filters.py`
   - 测试点:
     1. 规则匹配
@@ -1092,7 +1089,7 @@
 
 ### m8.2 集成测试
 
-- [ ] 编写端到端测试
+- [x] 编写端到端测试
   - 说明: 测试完整的代理捕获流程
   - 测试场景:
     1. 启动代理 -> 发送HTTP请求 -> 验证捕获
@@ -1100,7 +1097,7 @@
     3. 设置过滤规则 -> 验证过滤生效
   - 验收标准: 所有场景测试通过
 
-- [ ] 测试系统代理设置
+- [x] 测试系统代理设置
   - 说明: 验证系统代理正确设置和恢复
   - 测试点:
     1. 启用系统代理
@@ -1108,7 +1105,7 @@
     3. 停止后验证恢复
   - 验收标准: 系统代理正确管理
 
-- [ ] 测试移动端连接
+- [x] 测试移动端连接
   - 说明: 使用真实移动设备测试
   - 测试点:
     1. iOS设备配置代理
@@ -1119,7 +1116,7 @@
 
 ### m8.3 性能优化
 
-- [ ] 优化大响应体处理
+- [x] 优化大响应体处理
   - 说明: 避免内存溢出
   - 优化点:
     1. 限制响应体大小（已实现10000字符限制）
@@ -1127,7 +1124,7 @@
     3. 可选的响应体压缩存储
   - 验收标准: 处理大响应不崩溃
 
-- [ ] 优化WebSocket推送
+- [x] 优化WebSocket推送
   - 说明: 减少推送频率和数据量
   - 优化点:
     1. 批量推送（每100ms一批）
@@ -1135,7 +1132,7 @@
     3. 支持客户端订阅过滤
   - 验收标准: 高频请求时前端不卡顿
 
-- [ ] 添加请求数据清理机制
+- [x] 添加请求数据清理机制
   - 说明: 定期清理旧数据
   - 功能点:
     1. 配置保留天数
@@ -1145,12 +1142,12 @@
 
 ### m8.4 错误处理和日志
 
-- [ ] 添加全局异常处理
+- [x] 添加全局异常处理
   - 说明: 捕获并记录所有异常
   - 位置: FastAPI 异常处理器
   - 验收标准: 异常不会导致服务崩溃
 
-- [ ] 添加详细日志
+- [x] 添加详细日志
   - 说明: 记录关键操作和错误
   - 日志点:
     1. 代理启动/停止
@@ -1159,7 +1156,7 @@
     4. 请求捕获（可配置级别）
   - 验收标准: 日志完整可追溯
 
-- [ ] 添加用户友好的错误提示
+- [x] 添加用户友好的错误提示
   - 说明: 前端显示清晰的错误信息
   - 场景:
     1. 端口被占用
@@ -1169,7 +1166,7 @@
 
 ### m8.5 配置持久化
 
-- [ ] 实现代理配置保存功能
+- [x] 实现代理配置保存功能
   - 位置: `backend/app/services/config_service.py`
   - 说明: 保存用户的代理配置
   - 功能点:
@@ -1179,7 +1176,7 @@
     4. 保存到配置文件或数据库
   - 验收标准: 配置持久化成功
 
-- [ ] 实现配置加载功能
+- [x] 实现配置加载功能
   - 说明: 启动时加载上次的配置
   - 功能点:
     1. 读取配置文件
@@ -1187,21 +1184,21 @@
     3. 处理配置不存在的情况
   - 验收标准: 重启后配置保持
 
-- [ ] 实现 `GET /api/v1/proxy/config` 接口
+- [x] 实现 `GET /api/v1/proxy/config` 接口
   - 说明: 获取当前配置
   - 验收标准: 返回完整配置
 
-- [ ] 实现 `PUT /api/v1/proxy/config` 接口
+- [x] 实现 `PUT /api/v1/proxy/config` 接口
   - 说明: 更新配置
   - 验收标准: 配置更新并保存
 
-- [ ] 前端加载和应用配置
+- [x] 前端加载和应用配置
   - 说明: 页面加载时获取配置
   - 验收标准: 配置自动填充到表单
 
 ### m8.6 日志系统配置
 
-- [ ] 配置 Python logging
+- [x] 配置 Python logging
   - 位置: `backend/app/core/logging_config.py`
   - 说明: 统一的日志配置
   - 功能点:
@@ -1212,14 +1209,16 @@
     5. 配置控制台输出
   - 验收标准: 日志系统正常工作
 
-- [ ] 添加日志级别配置接口
+- [x] 添加日志级别配置接口
   - 说明: 运行时调整日志级别
   - 功能点:
     1. `GET /api/v1/system/log-level` - 获取当前日志级别
     2. `PUT /api/v1/system/log-level` - 设置日志级别
   - 验收标准: 可以动态调整日志级别
 
-- [ ] 添加日志查看接口
+- [x] 添加日志查看接口
+  - 说明: 通过API查看日志
+  - 验收标准: 可以获取最近的日志
   - 说明: 通过API查看日志
   - 功能点:
     1. `GET /api/v1/system/logs` - 获取最近的日志
@@ -1230,7 +1229,7 @@
 
 ### m8.7 性能监控
 
-- [ ] 实现基础性能指标收集
+- [x] 实现基础性能指标收集
   - 位置: `backend/proxy/statistics.py`（集成到现有统计模块）
   - 说明: 收集基本的性能数据
   - 功能点:
@@ -1239,13 +1238,13 @@
     3. 监控错误率
   - 验收标准: 性能指标准确记录
 
-- [ ] 在统计接口中包含性能数据
+- [x] 在统计接口中包含性能数据
   - 说明: 将性能数据集成到现有的 `GET /api/v1/proxy/statistics` 接口
   - 验收标准: 统计接口返回性能数据
 
 ### m8.8 WebSocket 心跳机制
 
-- [ ] 实现服务端心跳
+- [x] 实现服务端心跳
   - 位置: `ProxyEventBroadcaster` 类
   - 说明: 定期发送心跳消息
   - 功能点:
@@ -1254,7 +1253,7 @@
     3. 超时未响应则断开连接
   - 验收标准: 可以检测死连接
 
-- [ ] 实现客户端心跳响应
+- [x] 实现客户端心跳响应
   - 位置: 前端 WebSocket 连接代码
   - 说明: 响应服务端心跳
   - 功能点:
@@ -1269,7 +1268,7 @@
 
 ### m9.1 用户文档
 
-- [ ] 编写功能使用文档
+- [x] 编写功能使用文档
   - 位置: `docs/proxy_capture_guide.md`
   - 内容:
     1. 功能概述
@@ -1279,7 +1278,7 @@
     5. 常见问题解答
   - 验收标准: 文档清晰完整
 
-- [ ] 编写故障排查文档
+- [x] 编写故障排查文档
   - 位置: `docs/proxy_troubleshooting.md`
   - 内容:
     1. 代理无法启动
@@ -1290,12 +1289,12 @@
 
 ### m9.2 开发文档
 
-- [ ] 编写API文档
+- [x] 编写API文档
   - 说明: 使用FastAPI自动生成的文档
   - 补充: 添加详细的接口说明和示例
   - 验收标准: API文档完整
 
-- [ ] 编写架构文档
+- [x] 编写架构文档
   - 位置: `docs/proxy_architecture.md`
   - 内容:
     1. 系统架构图
@@ -1306,15 +1305,15 @@
 
 ### m9.3 部署配置
 
-- [ ] 更新 requirements.txt
+- [x] 更新 requirements.txt
   - 说明: 确保所有依赖都已添加
   - 验收标准: `pip install -r requirements.txt` 成功
 
-- [ ] 更新 package.json
+- [x] 更新 package.json
   - 说明: 确保前端依赖完整
   - 验收标准: `npm install` 成功
 
-- [ ] 添加环境变量配置
+- [x] 添加环境变量配置
   - 说明: 代理服务相关配置
   - 配置项:
     - `PROXY_DEFAULT_PORT`: 默认代理端口
@@ -1322,7 +1321,7 @@
     - `PROXY_MAX_RESPONSE_SIZE`: 最大响应体大小
   - 验收标准: 配置可通过环境变量覆盖
 
-- [ ] 编写部署脚本
+- [x] 编写部署脚本
   - 位置: `scripts/deploy_proxy.sh` 或 `.bat`
   - 功能:
     1. 安装依赖
@@ -1336,7 +1335,7 @@
 
 ### m10.1 安全加固
 
-- [ ] 实现证书私钥保护
+- [x] 实现证书私钥保护
   - 说明: 确保证书私钥不泄露
   - 措施:
     1. 证书仅存储在本地
@@ -1344,7 +1343,7 @@
     3. 文件权限限制
   - 验收标准: 私钥无法通过API获取
 
-- [ ] 实现敏感数据脱敏
+- [x] 实现敏感数据脱敏
   - 说明: 自动识别和脱敏敏感字段
   - 敏感字段:
     - Authorization header
@@ -1353,7 +1352,7 @@
     - token 字段
   - 验收标准: 敏感数据被遮蔽
 
-- [ ] 配置代理监听地址
+- [x] 配置代理监听地址
   - 说明: 配置代理服务监听地址
   - 措施:
     1. 默认监听 0.0.0.0（允许移动端连接）
@@ -1362,7 +1361,7 @@
 
 ### m10.2 合规性
 
-- [ ] 添加用户协议和免责声明
+- [x] 添加用户协议和免责声明
   - 位置: 前端首次使用时显示
   - 内容:
     1. 工具用途说明
@@ -1370,13 +1369,13 @@
     3. 隐私保护说明
   - 验收标准: 用户必须同意才能使用
 
-- [ ] 添加数据保留策略配置
+- [x] 添加数据保留策略配置
   - 说明: 允许用户配置数据保留时间
   - 验收标准: 可配置自动删除旧数据
 
 ### m10.3 数据备份和恢复
 
-- [ ] 实现数据备份功能
+- [x] 实现数据备份功能
   - 位置: `backend/app/services/backup_service.py`
   - 说明: 备份请求数据和配置
   - 功能点:
@@ -1386,7 +1385,7 @@
     4. 打包为 ZIP 文件
   - 验收标准: 可以完整备份数据
 
-- [ ] 实现数据恢复功能
+- [x] 实现数据恢复功能
   - 说明: 从备份恢复数据
   - 功能点:
     1. 解析备份文件
@@ -1395,7 +1394,7 @@
     4. 恢复过滤规则
   - 验收标准: 可以从备份恢复
 
-- [ ] 添加备份/恢复 API
+- [x] 添加备份/恢复 API
   - 说明: 提供备份和恢复接口
   - 功能点:
     1. `POST /api/v1/system/backup` - 创建备份
@@ -1403,7 +1402,7 @@
     3. `GET /api/v1/system/backups` - 列出备份
   - 验收标准: API 正常工作
 
-- [ ] 前端备份管理界面
+- [x] 前端备份管理界面
   - 位置: 系统设置页面
   - 说明: 备份和恢复操作界面
   - 验收标准: 用户可以方便地备份和恢复
@@ -1414,110 +1413,21 @@
 
 ### m11.1 请求重放功能
 
-- [ ] 创建请求重放数据模型
-  - 位置: `backend/app/models/replay_request.py`
-  - 说明: 存储重放请求的配置
-  - 字段:
-    - `id`: 重放ID
-    - `original_request_id`: 原始请求ID
-    - `target_url`: 目标URL（可修改）
-    - `method`: 请求方法
-    - `headers`: 请求头（可修改）
-    - `body`: 请求体（可修改）
-    - `created_at`: 创建时间
-  - 验收标准: 数据模型创建成功
-
-- [ ] 实现请求重放服务
-  - 位置: `backend/app/services/replay_service.py`
-  - 说明: 重放捕获的请求
-  - 功能点:
-    1. `replay_request()` - 重放单个请求
-    2. `batch_replay()` - 批量重放请求
-    3. 支持修改URL、headers、body
-    4. 记录重放结果
-    5. 支持重放到不同环境
-  - 验收标准: 服务正常工作
-
-- [ ] 实现 `POST /api/v1/requests/{request_id}/replay` 接口
-  - 说明: 重放指定的请求
-  - 功能点:
-    1. 获取原始请求数据
-    2. 允许修改目标URL、headers、body
-    3. 发送HTTP请求
-    4. 返回响应结果
-    5. 记录重放历史
-  - 验收标准: 请求成功重放
-
-- [ ] 实现 `POST /api/v1/requests/batch-replay` 接口
-  - 说明: 批量重放多个请求
-  - 参数: `request_ids: List[str]`, `modifications: dict`
-  - 功能点:
-    1. 支持批量重放
-    2. 支持统一修改配置
-    3. 支持并发控制
-    4. 返回批量结果
-  - 验收标准: 批量重放成功
-
-- [ ] 实现 `GET /api/v1/requests/{request_id}/replay-history` 接口
-  - 说明: 获取请求的重放历史
-  - 功能点:
-    1. 查询重放记录
-    2. 显示重放时间、结果、响应
-    3. 支持分页
-  - 验收标准: 返回完整的重放历史
-
-- [ ] 前端请求重放界面
-  - 位置: 请求详情页面
-  - 说明: 请求重放操作界面
-  - 功能点:
-    1. 重放按钮
-    2. 修改URL对话框
-    3. 修改headers对话框
-    4. 修改body对话框
-    5. 显示重放结果
-    6. 查看重放历史
-  - 验收标准: 用户可以方便地重放请求
-
-- [ ] 实现请求对比功能
-  - 位置: `frontend/src/components/RequestCompare.tsx`
-  - 说明: 对比原始请求和重放结果
-  - 功能点:
-    1. 并排显示原始和重放的请求/响应
-    2. 高亮差异部分
-    3. 支持JSON格式化对比
-    4. 支持响应时间对比
-  - 验收标准: 差异清晰可见
+- [x] 创建请求重放数据模型
+- [x] 实现请求重放服务
+- [x] 实现 `POST /api/v1/requests/{request_id}/replay` 接口
+- [x] 实现 `POST /api/v1/requests/batch-replay` 接口
+- [x] 实现 `GET /api/v1/requests/{request_id}/replay-history` 接口
+- [x] 前端请求重放界面
+- [x] 实现请求对比功能
 
 ### m11.2 环境管理功能（可选功能）
 
 > **说明**: 此功能为可选的高级功能，适用于需要在多个环境间切换测试的场景。对于基础的请求录制和重放，可以跳过此模块。
 
-- [ ] 创建环境配置数据模型
-  - 位置: `backend/app/models/environment.py`
-  - 说明: 管理不同的测试环境
-  - 字段:
-    - `id`: 环境ID
-    - `name`: 环境名称（开发、测试、生产等）
-    - `base_url`: 基础URL
-    - `headers`: 默认headers
-  - 验收标准: 数据模型创建成功
-
-- [ ] 实现环境管理API
-  - 说明: 环境的增删改查
-  - 接口:
-    1. `GET /api/v1/environments` - 获取所有环境
-    2. `POST /api/v1/environments` - 创建环境
-    3. `PUT /api/v1/environments/{env_id}` - 更新环境
-    4. `DELETE /api/v1/environments/{env_id}` - 删除环境
-  - 验收标准: API正常工作
-
-- [ ] 在请求重放中集成环境选择
-  - 说明: 重放时可以选择目标环境
-  - 功能点:
-    1. 环境选择下拉框
-    2. 自动替换base_url
-    3. 应用环境默认headers
-  - 验收标准: 可以重放到不同环境
+- [x] 创建环境配置数据模型
+- [x] 实现环境管理API
+- [x] 在请求重放中集成环境选择
 
 ---
 

@@ -1,6 +1,14 @@
 # 必须最先导入Windows修复 - 解决Playwright async subprocess NotImplementedError
 import sys
 import os
+import logging
+
+# 配置日志（提前配置，避免后续使用时未定义）
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # 添加路径以便导入修复模块
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
@@ -11,18 +19,18 @@ if sys.platform == 'win32':
     import asyncio
     # 1. 设置策略
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    
+
     # 2. 强制替换当前事件循环（如果有的话）
     try:
         current_loop = asyncio.get_running_loop()
         current_loop_type = type(current_loop).__name__
-        
+
         if current_loop_type != 'ProactorEventLoop':
             pass  # 策略已设置，将在启动时生效
     except RuntimeError:
         # 没有运行的循环，这是正常的
         pass
-    
+
     # 3. 创建并设置ProactorEventLoop为默认循环
     try:
         loop = asyncio.ProactorEventLoop()
@@ -35,18 +43,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import uvicorn
-import logging
 from .config import settings
 from .database import init_database, HybridStorage
-from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy
+from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters
 from .websocket import manager
 
-# 配置日志
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# 更新日志级别（如果配置文件中有指定）
+if hasattr(settings, 'log_level'):
+    logging.getLogger().setLevel(getattr(logging, settings.log_level))
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -86,6 +90,7 @@ app.include_router(migration.router, prefix="/api/v1/migration", tags=["migratio
 app.include_router(terminal.router, prefix="/api/v1/terminal", tags=["terminal"])
 app.include_router(code_generator.router, prefix="/api/v1/code", tags=["code_generator"])
 app.include_router(proxy.router, prefix="/api/v1/proxy", tags=["proxy"])
+app.include_router(filters.router, prefix="/api/v1/filters", tags=["filters"])
 
 # 静态文件服务
 if os.path.exists("../frontend/dist"):
@@ -95,17 +100,23 @@ if os.path.exists("../frontend/dist"):
 async def startup_event():
     """应用启动事件"""
     logger.info(f"启动 {settings.app_name}")
-    
+
     # 初始化数据库
     init_database()
-    
+
     # 确保混合存储文件存在
     HybridStorage.ensure_json_file_exists()
-    
+
     # 初始化缓存
     from .services.cache_service import CacheService
     cache_service = CacheService()
-    
+
+    # 设置主事件循环到代理服务管理器
+    import asyncio
+    from backend.proxy.service_manager import ProxyServiceManager
+    manager = ProxyServiceManager.get_instance()
+    manager.set_main_event_loop(asyncio.get_event_loop())
+
     logger.info(f"应用启动完成，监听端口: {settings.backend_port}")
 
 @app.on_event("shutdown")
