@@ -64,18 +64,7 @@ app = FastAPI(
 # CORS中间件配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        f"http://localhost:{settings.frontend_port}",
-        f"http://127.0.0.1:{settings.frontend_port}",
-        "http://localhost:3000",  # 默认React端口
-        "http://127.0.0.1:3000",
-        "http://192.168.2.12:3000",  # 局域网IP访问
-        "http://192.168.2.12:5173",  # Vite开发服务器
-        # 允许所有局域网192.168.x.x访问
-        "http://192.168.1.12:3000",
-        "http://192.168.1.12:5173",
-        "*"  # 开发环境允许所有来源
-    ],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

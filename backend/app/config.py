@@ -43,7 +43,19 @@ class Settings(BaseSettings):
     
     # WebSocket配置
     websocket_timeout: int = int(os.getenv("WEBSOCKET_TIMEOUT", "300"))
-    
+
+    # CORS配置 - 本地开发使用
+    cors_origins: list = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "*"  # 本地使用允许所有来源
+    ]
+
+    # 代理服务配置
+    proxy_port: int = int(os.getenv("PROXY_PORT", "8888"))
+
     # JWT配置
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
     algorithm: str = "HS256"
