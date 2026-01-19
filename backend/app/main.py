@@ -38,7 +38,7 @@ import uvicorn
 import logging
 from .config import settings
 from .database import init_database, HybridStorage
-from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator
+from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy
 from .websocket import manager
 
 # 配置日志
@@ -85,6 +85,7 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 app.include_router(migration.router, prefix="/api/v1/migration", tags=["migration"])
 app.include_router(terminal.router, prefix="/api/v1/terminal", tags=["terminal"])
 app.include_router(code_generator.router, prefix="/api/v1/code", tags=["code_generator"])
+app.include_router(proxy.router, prefix="/api/v1/proxy", tags=["proxy"])
 
 # 静态文件服务
 if os.path.exists("../frontend/dist"):

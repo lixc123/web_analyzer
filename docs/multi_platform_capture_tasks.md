@@ -9,58 +9,58 @@
 
 ### m1.1 环境准备与依赖安装
 
-- [ ] 在 `requirements.txt` 中添加 `mitmproxy>=10.0.0` 依赖
+- [x] 在 `requirements.txt` 中添加 `mitmproxy>=10.0.0` 依赖
   - 说明: mitmproxy 是核心代理引擎，支持HTTP/HTTPS/WebSocket协议拦截
   - 验收标准: `pip install mitmproxy` 成功执行，版本>=10.0.0
 
-- [ ] 在 `requirements.txt` 中添加 `qrcode[pil]>=7.4` 依赖
+- [x] 在 `requirements.txt` 中添加 `qrcode[pil]>=7.4` 依赖
   - 说明: 用于生成移动端证书下载二维码
   - 验收标准: 能够成功导入 `qrcode` 模块并生成二维码图片
 
-- [ ] 在 `requirements.txt` 中添加 `pywin32>=306` 依赖（仅Windows平台）
+- [x] 在 `requirements.txt` 中添加 `pywin32>=306` 依赖（仅Windows平台）
   - 说明: 用于操作Windows注册表设置系统代理
   - 验收标准: 能够成功导入 `winreg` 和 `ctypes` 模块
 
-- [ ] 在前端 `package.json` 中添加 `qrcode.react: ^3.1.0` 依赖
+- [x] 在前端 `package.json` 中添加 `qrcode.react: ^3.1.0` 依赖
   - 说明: React组件形式的二维码生成库
   - 验收标准: `npm install` 成功，组件可正常渲染
 
 ### m1.2 后端目录结构创建
 
-- [ ] 创建 `backend/proxy/` 目录
+- [x] 创建 `backend/proxy/` 目录
   - 说明: 代理服务核心模块的根目录
 
-- [ ] 创建 `backend/proxy/__init__.py` 文件
+- [x] 创建 `backend/proxy/__init__.py` 文件
   - 说明: Python包初始化文件，导出主要类和函数
 
-- [ ] 创建 `backend/proxy/proxy_server.py` 文件骨架
+- [x] 创建 `backend/proxy/proxy_server.py` 文件骨架
   - 说明: 代理服务器主类文件
   - 内容: 包含 `ProxyServer` 类的基础结构定义
 
-- [ ] 创建 `backend/proxy/request_handler.py` 文件骨架
+- [x] 创建 `backend/proxy/request_handler.py` 文件骨架
   - 说明: 请求处理器文件
   - 内容: 包含 `RequestInterceptor` 类的基础结构定义
 
-- [ ] 创建 `backend/proxy/cert_manager.py` 文件骨架
+- [x] 创建 `backend/proxy/cert_manager.py` 文件骨架
   - 说明: CA证书管理文件
   - 内容: 包含 `CertManager` 类的基础结构定义
 
-- [ ] 创建 `backend/proxy/system_proxy.py` 文件骨架
+- [x] 创建 `backend/proxy/system_proxy.py` 文件骨架
   - 说明: Windows系统代理设置文件
   - 内容: 包含 `WindowsSystemProxy` 类的基础结构定义
 
-- [ ] 创建 `backend/proxy/filters.py` 文件骨架
+- [x] 创建 `backend/proxy/filters.py` 文件骨架
   - 说明: 请求过滤规则文件
   - 内容: 包含过滤规则相关类和函数定义
 
 ### m1.3 ProxyServer 核心类实现
 
-- [ ] 实现 `ProxyServer.__init__()` 方法
+- [x] 实现 `ProxyServer.__init__()` 方法
   - 参数: `host: str = "0.0.0.0"`, `port: int = 8888`, `on_request: Optional[Callable] = None`, `on_response: Optional[Callable] = None`
   - 说明: 初始化代理服务器配置，设置监听地址、端口和回调函数
   - 验收标准: 实例化时能正确保存配置参数
 
-- [ ] 实现 `ProxyServer.start()` 方法
+- [x] 实现 `ProxyServer.start()` 方法
   - 说明: 启动代理服务器
   - 功能点:
     1. 创建 `mitmproxy.options.Options` 对象，配置 `listen_host`、`listen_port`、`ssl_insecure=True`
@@ -69,31 +69,31 @@
     4. 在独立线程中运行代理服务
   - 验收标准: 调用后代理服务在指定端口监听
 
-- [ ] 实现 `ProxyServer._run()` 私有方法
+- [x] 实现 `ProxyServer._run()` 私有方法
   - 说明: 在独立线程中运行事件循环
   - 功能点:
     1. 创建新的 asyncio 事件循环
     2. 调用 `self._master.run()` 启动服务
   - 验收标准: 代理服务能在后台线程稳定运行
 
-- [ ] 实现 `ProxyServer.stop()` 方法
+- [x] 实现 `ProxyServer.stop()` 方法
   - 说明: 停止代理服务器
   - 功能点:
     1. 调用 `self._master.shutdown()` 关闭服务
     2. 设置 `self._running = False`
   - 验收标准: 调用后代理服务完全停止，端口释放
 
-- [ ] 实现 `ProxyServer.is_running` 属性
+- [x] 实现 `ProxyServer.is_running` 属性
   - 说明: 返回代理服务器运行状态
   - 验收标准: 返回正确的布尔值
 
 ### m1.4 RequestInterceptor 请求拦截器实现
 
-- [ ] 实现 `RequestInterceptor.__init__()` 方法
+- [x] 实现 `RequestInterceptor.__init__()` 方法
   - 参数: `on_request: Callable`, `on_response: Callable`
   - 说明: 初始化拦截器，保存回调函数引用
 
-- [ ] 实现 `RequestInterceptor.request()` 方法
+- [x] 实现 `RequestInterceptor.request()` 方法
   - 参数: `flow: mitmproxy.http.HTTPFlow`
   - 说明: 拦截HTTP请求
   - 功能点:
@@ -102,7 +102,7 @@
     3. 调用 `self.on_request` 回调传递数据
   - 验收标准: 每个经过代理的请求都能触发回调
 
-- [ ] 实现 `RequestInterceptor.response()` 方法
+- [x] 实现 `RequestInterceptor.response()` 方法
   - 参数: `flow: mitmproxy.http.HTTPFlow`
   - 说明: 拦截HTTP响应
   - 功能点:
@@ -114,18 +114,18 @@
 
 ### m1.5 代理服务与FastAPI集成
 
-- [ ] 在 `backend/app/api/v1/` 目录下创建 `proxy.py` 路由文件
+- [x] 在 `backend/app/api/v1/` 目录下创建 `proxy.py` 路由文件
   - 说明: 代理服务的API路由定义
 
-- [ ] 定义 `ProxyConfig` Pydantic模型
+- [x] 定义 `ProxyConfig` Pydantic模型
   - 字段: `host: str = "0.0.0.0"`, `port: int = 8888`, `enable_system_proxy: bool = False`, `filter_hosts: List[str] = []`
   - 说明: 代理服务配置模型，用于API请求验证
 
-- [ ] 定义 `ProxyStatus` Pydantic模型
+- [x] 定义 `ProxyStatus` Pydantic模型
   - 字段: `running: bool`, `host: str`, `port: int`, `system_proxy_enabled: bool`, `connected_clients: int`, `total_requests: int`
   - 说明: 代理服务状态响应模型
 
-- [ ] 实现 `POST /api/v1/proxy/start` 接口
+- [x] 实现 `POST /api/v1/proxy/start` 接口
   - 参数: `ProxyConfig`
   - 说明: 启动代理服务器
   - 功能点:
@@ -136,7 +136,7 @@
     5. 如果 enable_system_proxy=True，调用系统代理设置
   - 验收标准: 返回200状态码，代理服务成功启动
 
-- [ ] 实现 `POST /api/v1/proxy/stop` 接口
+- [x] 实现 `POST /api/v1/proxy/stop` 接口
   - 说明: 停止代理服务器
   - 功能点:
     1. 调用 ProxyServer.stop() 停止服务
@@ -144,7 +144,7 @@
     3. 清理资源
   - 验收标准: 返回200状态码，代理服务完全停止
 
-- [ ] 实现 `GET /api/v1/proxy/status` 接口
+- [x] 实现 `GET /api/v1/proxy/status` 接口
   - 返回: `ProxyStatus`
   - 说明: 获取代理服务器当前状态
   - 功能点:
@@ -154,20 +154,20 @@
     4. 统计连接客户端数和总请求数
   - 验收标准: 返回准确的状态信息
 
-- [ ] 实现 `GET /api/v1/proxy/local-ip` 接口
+- [x] 实现 `GET /api/v1/proxy/local-ip` 接口
   - 说明: 获取本机局域网IP地址（供移动端配置使用）
   - 功能点:
     1. 使用 socket 连接外部地址获取本机IP
     2. 返回 {"ip": "192.168.x.x"} 格式
   - 验收标准: 返回正确的局域网IP地址
 
-- [ ] 将 proxy 路由注册到主应用
+- [x] 将 proxy 路由注册到主应用
   - 位置: `backend/app/main.py`
   - 说明: 在 FastAPI app 中包含 proxy 路由
 
 ### m1.6 全局代理服务管理器
 
-- [ ] 创建 `ProxyServiceManager` 单例类
+- [x] 创建 `ProxyServiceManager` 单例类
   - 位置: `backend/proxy/service_manager.py`
   - 说明: 管理代理服务实例，确保只有一个代理服务运行
   - 功能点:
@@ -178,7 +178,7 @@
     5. 防止重复启动
   - 验收标准: 无法同时启动多个代理服务
 
-- [ ] 实现 `ProxyServiceManager.start_service()` 方法
+- [x] 实现 `ProxyServiceManager.start_service()` 方法
   - 说明: 启动代理服务
   - 功能点:
     1. 检查是否已有实例运行
@@ -187,7 +187,7 @@
     4. 保存实例引用
   - 验收标准: 启动前自动检查并处理已有实例
 
-- [ ] 实现 `ProxyServiceManager.stop_service()` 方法
+- [x] 实现 `ProxyServiceManager.stop_service()` 方法
   - 说明: 停止代理服务
   - 功能点:
     1. 调用当前实例的 stop() 方法
@@ -195,13 +195,13 @@
     3. 恢复系统代理设置
   - 验收标准: 服务完全停止，资源释放
 
-- [ ] 在 API 中使用 ProxyServiceManager
+- [x] 在 API 中使用 ProxyServiceManager
   - 说明: 所有代理相关API都通过管理器操作
   - 验收标准: API调用统一通过管理器
 
 ### m1.7 请求统计功能
 
-- [ ] 创建 `RequestStatistics` 类
+- [x] 创建 `RequestStatistics` 类
   - 位置: `backend/proxy/statistics.py`
   - 说明: 统计请求相关数据
   - 功能点:
@@ -213,17 +213,17 @@
     6. 按域名统计
   - 验收标准: 提供完整的统计数据
 
-- [ ] 实现 `RequestStatistics.record_request()` 方法
+- [x] 实现 `RequestStatistics.record_request()` 方法
   - 参数: `request_data: dict`
   - 说明: 记录单个请求的统计信息
   - 验收标准: 统计数据实时更新
 
-- [ ] 实现 `RequestStatistics.get_summary()` 方法
+- [x] 实现 `RequestStatistics.get_summary()` 方法
   - 返回: `dict` 包含所有统计数据
   - 说明: 获取统计摘要
   - 验收标准: 返回完整的统计报告
 
-- [ ] 实现 `GET /api/v1/proxy/statistics` 接口
+- [x] 实现 `GET /api/v1/proxy/statistics` 接口
   - 说明: 获取请求统计数据
   - 功能点:
     1. 调用 RequestStatistics.get_summary()
@@ -231,13 +231,13 @@
     3. 支持按来源过滤
   - 验收标准: 返回详细的统计数据
 
-- [ ] 在 RequestInterceptor 中集成统计
+- [x] 在 RequestInterceptor 中集成统计
   - 说明: 每个请求都记录到统计中
   - 验收标准: 统计数据准确
 
 ### m1.8 错误处理和重试机制
 
-- [ ] 实现代理启动失败重试逻辑
+- [x] 实现代理启动失败重试逻辑
   - 位置: `ProxyServer.start()` 方法
   - 说明: 启动失败时自动重试
   - 功能点:
@@ -247,7 +247,7 @@
     4. 返回详细的错误信息
   - 验收标准: 端口冲突时自动切换端口
 
-- [ ] 实现 RequestInterceptor 异常处理
+- [x] 实现 RequestInterceptor 异常处理
   - 说明: 处理请求/响应拦截过程中的异常
   - 功能点:
     1. 捕获所有异常
