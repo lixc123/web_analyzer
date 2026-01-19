@@ -99,3 +99,6 @@ backend/terminal_service/node_modules/
 
 # Frontend build
 frontend/dist/
+
+# Claude Code
+.claude/
