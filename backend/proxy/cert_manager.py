@@ -133,3 +133,26 @@ class CertManager:
                 f"6. 注意：Android 7.0+默认不信任用户证书，部分应用可能无法抓包"
             ]
         }
+
+    def check_cert_installed_windows(self) -> bool:
+        """检查证书是否已在Windows系统中安装"""
+        try:
+            cmd = 'certutil -store -user Root'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            if result.returncode == 0:
+                # 检查输出中是否包含mitmproxy证书
+                return 'mitmproxy' in result.stdout.lower()
+            return False
+        except Exception as e:
+            print(f"检查证书状态时出错: {e}")
+            return False
+
+    def get_cert_status(self) -> dict:
+        """获取证书状态信息"""
+        return {
+            "exists": os.path.exists(self.ca_cert_path),
+            "path": self.ca_cert_path,
+            "installed_windows": self.check_cert_installed_windows() if os.name == 'nt' else None
+        }
+

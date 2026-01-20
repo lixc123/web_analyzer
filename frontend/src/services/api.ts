@@ -1,4 +1,5 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, AxiosRequestConfig } from 'axios'
+import { handleError, retryWithBackoff } from '@/utils/errorHandler'
 
 // 动态获取API baseURL - 支持本地和局域网访问
 const getApiBaseURL = () => {
@@ -21,13 +22,46 @@ const apiClient = axios.create({
   },
 })
 
+// 请求计数器（用于请求去重）
+const pendingRequests = new Map<string, AbortController>()
+
+// 生成请求唯一标识
+function generateRequestKey(config: AxiosRequestConfig): string {
+  const { method, url, params, data } = config
+  return `${method}:${url}:${JSON.stringify(params)}:${JSON.stringify(data)}`
+}
+
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    // 请求去重
+    const requestKey = generateRequestKey(config)
+
+    // 如果存在相同的pending请求，取消之前的请求
+    if (pendingRequests.has(requestKey)) {
+      const controller = pendingRequests.get(requestKey)!
+      controller.abort()
+      pendingRequests.delete(requestKey)
+    }
+
+    // 创建新的AbortController
+    const controller = new AbortController()
+    config.signal = controller.signal
+    pendingRequests.set(requestKey, controller)
+
     // 可以在这里添加认证token等
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+
+    // 添加请求时间戳
+    config.headers['X-Request-Time'] = Date.now().toString()
+
     return config
   },
   (error) => {
+    handleError(error, { showMessage: true })
     return Promise.reject(error)
   }
 )
@@ -35,14 +69,65 @@ apiClient.interceptors.request.use(
 // 响应拦截器
 apiClient.interceptors.response.use(
   (response) => {
+    // 请求成功，从pending列表中移除
+    const requestKey = generateRequestKey(response.config)
+    pendingRequests.delete(requestKey)
+
+    // 记录响应时间
+    const requestTime = parseInt(response.config.headers['X-Request-Time'] as string || '0')
+    if (requestTime) {
+      const responseTime = Date.now() - requestTime
+      console.log(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${responseTime}ms`)
+    }
+
     return response
   },
   (error: AxiosError) => {
+    // 请求失败，从pending列表中移除
+    if (error.config) {
+      const requestKey = generateRequestKey(error.config)
+      pendingRequests.delete(requestKey)
+    }
+
+    // 如果是取消的请求，不显示错误
+    if (axios.isCancel(error)) {
+      console.log('[API] Request cancelled:', error.message)
+      return Promise.reject(error)
+    }
+
     // 统一错误处理
-    const message = (error.response?.data as any)?.detail || error.message || '请求失败'
-    return Promise.reject(new Error(message))
+    handleError(error, {
+      showMessage: true,
+      showNotification: false,
+      logToConsole: true
+    })
+
+    return Promise.reject(error)
   }
 )
+
+// 带重试的请求包装器
+export async function requestWithRetry<T>(
+  requestFn: () => Promise<T>,
+  options?: {
+    maxRetries?: number
+    showRetryMessage?: boolean
+  }
+): Promise<T> {
+  const { maxRetries = 3, showRetryMessage = false } = options || {}
+
+  return retryWithBackoff(requestFn, {
+    maxRetries,
+    initialDelay: 1000,
+    maxDelay: 5000,
+    backoffFactor: 2,
+    onRetry: (attempt, error) => {
+      if (showRetryMessage) {
+        console.log(`[API] Retry attempt ${attempt}/${maxRetries}:`, error.message)
+      }
+    }
+  })
+}
 
 // 类型定义
 // Hook 功能选项

@@ -1,44 +1,93 @@
-import React, { useState } from 'react';
-import ProxyControl from './ProxyControl';
-import MobileSetup from './MobileSetup';
-import CertManager from './CertManager';
-import './ProxyCapture.css';
+import React from 'react'
+import { Tabs, Row, Col } from 'antd'
+import {
+  ControlOutlined,
+  MobileOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  UnorderedListOutlined
+} from '@ant-design/icons'
+import ProxyControl from './ProxyControl'
+import MobileSetup from './MobileSetup'
+import CertManager from './CertManager'
+import DeviceList from './DeviceList'
+import ProxyRequestList from './ProxyRequestList'
 
 const ProxyCapture: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'control' | 'mobile' | 'cert'>('control');
+  const items = [
+    {
+      key: 'control',
+      label: (
+        <span>
+          <ControlOutlined />
+          <span style={{ marginLeft: 8 }}>代理控制</span>
+        </span>
+      ),
+      children: (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+            <ProxyControl />
+          </Col>
+          <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+            <DeviceList />
+          </Col>
+        </Row>
+      )
+    },
+    {
+      key: 'requests',
+      label: (
+        <span>
+          <UnorderedListOutlined />
+          <span style={{ marginLeft: 8 }}>请求列表</span>
+        </span>
+      ),
+      children: <ProxyRequestList />
+    },
+    {
+      key: 'mobile',
+      label: (
+        <span>
+          <MobileOutlined />
+          <span style={{ marginLeft: 8 }}>移动端配置</span>
+        </span>
+      ),
+      children: <MobileSetup />
+    },
+    {
+      key: 'cert',
+      label: (
+        <span>
+          <SafetyCertificateOutlined />
+          <span style={{ marginLeft: 8 }}>证书管理</span>
+        </span>
+      ),
+      children: <CertManager />
+    },
+    {
+      key: 'devices',
+      label: (
+        <span>
+          <TeamOutlined />
+          <span style={{ marginLeft: 8 }}>设备列表</span>
+        </span>
+      ),
+      children: <DeviceList />
+    }
+  ]
 
   return (
-    <div className="proxy-capture-page">
-      <h1>代理抓包</h1>
-
-      <div className="tabs">
-        <button
-          className={activeTab === 'control' ? 'active' : ''}
-          onClick={() => setActiveTab('control')}
-        >
-          代理控制
-        </button>
-        <button
-          className={activeTab === 'mobile' ? 'active' : ''}
-          onClick={() => setActiveTab('mobile')}
-        >
-          移动端配置
-        </button>
-        <button
-          className={activeTab === 'cert' ? 'active' : ''}
-          onClick={() => setActiveTab('cert')}
-        >
-          证书管理
-        </button>
-      </div>
-
-      <div className="tab-content">
-        {activeTab === 'control' && <ProxyControl />}
-        {activeTab === 'mobile' && <MobileSetup />}
-        {activeTab === 'cert' && <CertManager />}
-      </div>
+    <div style={{ padding: '0', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      <Tabs
+        defaultActiveKey="control"
+        items={items}
+        size="large"
+        tabBarStyle={{ marginBottom: 16 }}
+        style={{ width: '100%' }}
+        tabBarGutter={16}
+      />
     </div>
-  );
-};
+  )
+}
 
-export default ProxyCapture;
+export default ProxyCapture

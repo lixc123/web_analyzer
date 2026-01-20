@@ -12,17 +12,20 @@ const MobileSetup: React.FC = () => {
   const [instructions, setInstructions] = useState<any>(null);
   const [serverIP, setServerIP] = useState('');
   const [serverPort, setServerPort] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectedDevices, setConnectedDevices] = useState<any[]>([]);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchData = async () => {
       try {
-        const [qrRes, instRes, ipRes, statusRes] = await Promise.all([
+        const [qrRes, instRes, ipRes, statusRes, devicesRes] = await Promise.all([
           axios.get('/api/v1/proxy/cert/qrcode'),
           axios.get('/api/v1/proxy/cert/instructions'),
           axios.get('/api/v1/proxy/local-ip'),
-          axios.get('/api/v1/proxy/status')
+          axios.get('/api/v1/proxy/status'),
+          axios.get('/api/v1/proxy/devices')
         ]);
 
         if (isMounted) {
@@ -30,6 +33,15 @@ const MobileSetup: React.FC = () => {
           setInstructions(instRes.data);
           setServerIP(ipRes.data.ip);
           setServerPort(statusRes.data.port || '8888');
+
+          const devices = devicesRes.data.devices || [];
+          setConnectedDevices(devices);
+
+          // 检查是否有对应平台的设备连接
+          const hasDevice = devices.some((d: any) =>
+            d.type.toLowerCase() === platform
+          );
+          setIsConnected(hasDevice);
         }
       } catch (error) {
         if (isMounted) {
@@ -40,12 +52,22 @@ const MobileSetup: React.FC = () => {
 
     fetchData();
 
+    // 定期刷新设备连接状态
+    const interval = setInterval(fetchData, 5000);
+
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
-  }, []);
+  }, [platform]);
 
   const currentInstructions = instructions?.[platform === 'ios' ? 'ios' : 'android'] || [];
+
+  const getPlatformDevices = () => {
+    return connectedDevices.filter(d =>
+      d.type.toLowerCase() === platform
+    );
+  };
 
   return (
     <div className="mobile-setup">
@@ -64,6 +86,26 @@ const MobileSetup: React.FC = () => {
         >
           Android
         </button>
+      </div>
+
+      {/* 连接状态指示器 */}
+      <div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
+        <div className="status-indicator">
+          <span className={`status-dot ${isConnected ? 'online' : 'offline'}`}></span>
+          <span className="status-text">
+            {isConnected ? `已连接 ${getPlatformDevices().length} 台设备` : '未检测到设备连接'}
+          </span>
+        </div>
+
+        {isConnected && (
+          <div className="connected-devices">
+            {getPlatformDevices().map((device, idx) => (
+              <div key={idx} className="device-item">
+                {device.model || device.type} - {device.os_version}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="server-info">
@@ -98,6 +140,9 @@ const MobileSetup: React.FC = () => {
         <a href="/api/v1/proxy/cert/download" download>
           下载证书文件
         </a>
+        <p className="mitm-hint">
+          或访问 <a href="http://mitm.it" target="_blank" rel="noopener noreferrer">http://mitm.it</a> 下载证书
+        </p>
       </div>
     </div>
   );

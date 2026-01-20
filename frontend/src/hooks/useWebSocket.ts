@@ -176,25 +176,53 @@ export const useWebSocket = (clientId = 'default-client') => {
     switch (message.type) {
       case 'crawler_progress':
         // 触发爬虫进度更新事件
-        window.dispatchEvent(new CustomEvent('crawler-progress', { 
-          detail: message.data 
+        window.dispatchEvent(new CustomEvent('crawler-progress', {
+          detail: message.data
         }))
         break
-        
+
       case 'analysis_result':
         // 触发分析结果更新事件
-        window.dispatchEvent(new CustomEvent('analysis-result', { 
-          detail: message.data 
+        window.dispatchEvent(new CustomEvent('analysis-result', {
+          detail: message.data
         }))
         break
-        
+
+      case 'proxy_status':
+        // 触发代理状态更新事件
+        window.dispatchEvent(new CustomEvent('proxy-status', {
+          detail: message.data
+        }))
+        break
+
+      case 'new_request':
+        // 触发新请求事件
+        window.dispatchEvent(new CustomEvent('proxy-new-request', {
+          detail: message.data
+        }))
+        break
+
+      case 'device_connected':
+        // 触发设备连接事件
+        window.dispatchEvent(new CustomEvent('proxy-device-connected', {
+          detail: message.data
+        }))
+        break
+
+      case 'device_disconnected':
+        // 触发设备断开事件
+        window.dispatchEvent(new CustomEvent('proxy-device-disconnected', {
+          detail: message.data
+        }))
+        break
+
       case 'error':
         // 触发错误事件
-        window.dispatchEvent(new CustomEvent('ws-error', { 
+        window.dispatchEvent(new CustomEvent('ws-error', {
           detail: { message: message.message, data: message.data }
         }))
         break
-        
+
       case 'ping':
         // 响应ping消息
         sendMessage({ type: 'pong', timestamp: new Date().toISOString() })
@@ -202,13 +230,13 @@ export const useWebSocket = (clientId = 'default-client') => {
 
       case 'pong':
         break
-        
+
       case 'echo':
       case 'text_message':
         // 处理服务器回声消息，通常用于测试连接
         console.log('收到服务器回声:', message.data)
         break
-        
+
       default:
         console.log('收到未知类型的WebSocket消息:', message.type, message)
     }

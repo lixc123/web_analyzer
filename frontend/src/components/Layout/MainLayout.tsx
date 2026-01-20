@@ -24,7 +24,9 @@ import {
   LogoutOutlined,
   BellOutlined,
   FullscreenOutlined,
-  FullscreenExitOutlined
+  FullscreenExitOutlined,
+  ApiOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons'
 import { useGlobalStore, useWebSocketStatus, useSystemStatus } from '@store/GlobalStore'
 import { useAuth } from '@components/Auth/AuthProvider'
@@ -73,6 +75,18 @@ const MainLayout: React.FC = () => {
       icon: <BugOutlined />,
       label: '网络爬虫',
       title: '网络流量录制'
+    },
+    {
+      key: '/proxy-capture',
+      icon: <ApiOutlined />,
+      label: '代理录制',
+      title: '代理抓包与录制'
+    },
+    {
+      key: '/native-hook',
+      icon: <ThunderboltOutlined />,
+      label: '内存Hook',
+      title: 'Windows应用Hook'
     },
     {
       key: '/analysis',

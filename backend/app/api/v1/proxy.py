@@ -280,6 +280,17 @@ async def uninstall_cert_windows():
         raise HTTPException(status_code=500, detail="证书卸载失败")
 
 
+@router.get("/cert/status")
+async def get_cert_status():
+    """获取证书状态"""
+    from backend.proxy.cert_manager import CertManager
+
+    cert_manager = CertManager()
+    status = cert_manager.get_cert_status()
+
+    return status
+
+
 @router.get("/devices")
 async def get_devices():
     """获取连接的设备列表"""

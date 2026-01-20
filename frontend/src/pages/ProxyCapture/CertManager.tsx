@@ -1,9 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+
+interface CertStatus {
+  exists: boolean;
+  path: string;
+  installed_windows: boolean | null;
+}
 
 const CertManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [certStatus, setCertStatus] = useState<CertStatus | null>(null);
+
+  useEffect(() => {
+    fetchCertStatus();
+  }, []);
+
+  const fetchCertStatus = async () => {
+    try {
+      const res = await axios.get('/api/v1/proxy/cert/status');
+      setCertStatus(res.data);
+    } catch (error) {
+      console.error('获取证书状态失败:', error);
+    }
+  };
 
   const handleInstallWindows = async () => {
     setLoading(true);
@@ -11,6 +31,7 @@ const CertManager: React.FC = () => {
     try {
       const res = await axios.post('/api/v1/proxy/cert/install-windows');
       setMessage('证书安装成功！');
+      await fetchCertStatus(); // 刷新状态
     } catch (error) {
       setMessage('证书安装失败: ' + (error as any).response?.data?.detail);
     } finally {
@@ -24,6 +45,7 @@ const CertManager: React.FC = () => {
     try {
       const res = await axios.post('/api/v1/proxy/cert/uninstall-windows');
       setMessage('证书卸载成功！');
+      await fetchCertStatus(); // 刷新状态
     } catch (error) {
       setMessage('证书卸载失败');
     } finally {
@@ -37,6 +59,31 @@ const CertManager: React.FC = () => {
 
       <div className="cert-info">
         <p>HTTPS 抓包需要安装 CA 证书到系统受信任的根证书存储中。</p>
+
+        {certStatus && (
+          <div className="cert-status">
+            <div className="status-item">
+              <span>证书文件:</span>
+              <strong className={certStatus.exists ? 'status-ok' : 'status-error'}>
+                {certStatus.exists ? '已生成' : '未生成'}
+              </strong>
+            </div>
+            {certStatus.installed_windows !== null && (
+              <div className="status-item">
+                <span>Windows系统:</span>
+                <strong className={certStatus.installed_windows ? 'status-ok' : 'status-warning'}>
+                  {certStatus.installed_windows ? '已安装' : '未安装'}
+                </strong>
+              </div>
+            )}
+            {certStatus.path && (
+              <div className="status-item">
+                <span>证书路径:</span>
+                <code>{certStatus.path}</code>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="actions">

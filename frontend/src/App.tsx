@@ -9,7 +9,10 @@ import AnalysisPage from '@pages/Analysis'
 import AnalysisWorkbench from '@pages/AnalysisWorkbench'
 import TerminalPage from '@pages/Terminal'
 import SettingsPage from '@pages/Settings'
+import ProxyCapturePage from '@pages/ProxyCapture'
+import NativeHookPage from '@pages/NativeHook'
 import { useWebSocket } from '@hooks/useWebSocket'
+import ErrorBoundary from '@components/ErrorBoundary'
 
 const App: React.FC = () => {
   const { theme } = useGlobalStore()
@@ -18,20 +21,56 @@ const App: React.FC = () => {
   useWebSocket()
 
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <Routes>
-        {/* 主应用路由 */}
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="crawler" element={<CrawlerPage />} />
-          <Route path="analysis" element={<AnalysisPage />} />
-          <Route path="workbench" element={<AnalysisWorkbench />} />
-          <Route path="terminal" element={<TerminalPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </Layout>
+    <ErrorBoundary componentName="App">
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        <Routes>
+          {/* 主应用路由 */}
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={
+              <ErrorBoundary componentName="HomePage">
+                <HomePage />
+              </ErrorBoundary>
+            } />
+            <Route path="crawler" element={
+              <ErrorBoundary componentName="CrawlerPage">
+                <CrawlerPage />
+              </ErrorBoundary>
+            } />
+            <Route path="proxy-capture" element={
+              <ErrorBoundary componentName="ProxyCapturePage">
+                <ProxyCapturePage />
+              </ErrorBoundary>
+            } />
+            <Route path="native-hook" element={
+              <ErrorBoundary componentName="NativeHookPage">
+                <NativeHookPage />
+              </ErrorBoundary>
+            } />
+            <Route path="analysis" element={
+              <ErrorBoundary componentName="AnalysisPage">
+                <AnalysisPage />
+              </ErrorBoundary>
+            } />
+            <Route path="workbench" element={
+              <ErrorBoundary componentName="AnalysisWorkbench">
+                <AnalysisWorkbench />
+              </ErrorBoundary>
+            } />
+            <Route path="terminal" element={
+              <ErrorBoundary componentName="TerminalPage">
+                <TerminalPage />
+              </ErrorBoundary>
+            } />
+            <Route path="settings" element={
+              <ErrorBoundary componentName="SettingsPage">
+                <SettingsPage />
+              </ErrorBoundary>
+            } />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Layout>
+    </ErrorBoundary>
   )
 }
 

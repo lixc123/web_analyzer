@@ -45,7 +45,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from .config import settings
 from .database import init_database, HybridStorage
-from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters
+from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters, native_hook
 from .websocket import manager
 
 # 更新日志级别（如果配置文件中有指定）
@@ -70,6 +70,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 设置全局错误处理器
+from .middleware.error_handler import setup_error_handlers
+setup_error_handlers(app)
+
 # 注册API路由
 app.include_router(crawler.router, prefix="/api/v1/crawler", tags=["crawler"])
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["analysis"])
@@ -80,6 +84,7 @@ app.include_router(terminal.router, prefix="/api/v1/terminal", tags=["terminal"]
 app.include_router(code_generator.router, prefix="/api/v1/code", tags=["code_generator"])
 app.include_router(proxy.router, prefix="/api/v1/proxy", tags=["proxy"])
 app.include_router(filters.router, prefix="/api/v1/filters", tags=["filters"])
+app.include_router(native_hook.router, tags=["native_hook"])
 
 # 静态文件服务
 if os.path.exists("../frontend/dist"):
