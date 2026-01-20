@@ -6,6 +6,9 @@ import logging
 
 from ...database import get_db
 from ...services.analysis_service import AnalysisService
+from ....utils.js_beautifier import beautify_js
+from ....utils.dependency_analyzer import DependencyAnalyzer
+from ....utils.replay_validator import ReplayValidator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -252,3 +255,53 @@ async def export_analysis_result(
     except Exception as e:
         logger.error(f"导出分析结果失败: {e}")
         raise HTTPException(status_code=500, detail=f"导出分析结果失败: {str(e)}")
+
+class BeautifyRequest(BaseModel):
+    code: str
+
+@router.post("/beautify-js")
+async def beautify_javascript(request: BeautifyRequest):
+    """美化JavaScript代码"""
+    try:
+        beautified = beautify_js(request.code)
+        return {"beautified_code": beautified}
+    except Exception as e:
+        logger.error(f"代码美化失败: {e}")
+        raise HTTPException(status_code=500, detail=f"代码美化失败: {str(e)}")
+
+class DependencyRequest(BaseModel):
+    requests: List[Dict[str, Any]]
+
+@router.post("/dependency-graph")
+async def analyze_dependency_graph(request: DependencyRequest):
+    """分析请求依赖关系图"""
+    try:
+        analyzer = DependencyAnalyzer()
+        result = analyzer.analyze_dependencies(request.requests)
+        return result
+    except Exception as e:
+        logger.error(f"依赖关系分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f"依赖关系分析失败: {str(e)}")
+
+@router.post("/replay-validate")
+async def replay_and_validate(request: DependencyRequest):
+    """重放请求并验证"""
+    try:
+        validator = ReplayValidator()
+        result = await validator.replay_requests(request.requests)
+        return result
+    except Exception as e:
+        logger.error(f"重放验证失败: {e}")
+        raise HTTPException(status_code=500, detail=f"重放验证失败: {str(e)}")
+
+@router.post("/signature-analysis")
+async def analyze_signature(request: DependencyRequest):
+    """分析请求签名"""
+    try:
+        from backend.utils.signature_analyzer import SignatureAnalyzer
+        analyzer = SignatureAnalyzer()
+        result = analyzer.analyze_requests(request.requests)
+        return result
+    except Exception as e:
+        logger.error(f"签名分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f"签名分析失败: {str(e)}")

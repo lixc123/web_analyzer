@@ -99,10 +99,11 @@ class ConnectionManager:
     
     async def send_error(self, error_msg: str, client_id: str = None):
         """发送错误消息"""
+        from datetime import datetime
         message = {
             "type": "error",
             "message": error_msg,
-            "timestamp": None
+            "timestamp": datetime.now().isoformat()
         }
         
         if client_id:

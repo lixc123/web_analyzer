@@ -78,6 +78,8 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
   const [showGeneratedCode, setShowGeneratedCode] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
   const [codeGenerating, setCodeGenerating] = useState(false);
+  const [beautifiedCode, setBeautifiedCode] = useState('');
+  const [isBeautifying, setIsBeautifying] = useState(false);
 
   // 加载真实请求数据
   useEffect(() => {
@@ -240,6 +242,32 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
       }
     } catch (error) {
       message.error(`下载失败: ${error}`);
+    }
+  };
+
+  // 美化JavaScript代码
+  const beautifyCode = async (code: string) => {
+    try {
+      setIsBeautifying(true);
+      const response = await fetch('/api/v1/analysis/beautify-js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBeautifiedCode(data.beautified_code);
+        message.success('代码美化成功');
+        return data.beautified_code;
+      } else {
+        throw new Error('美化失败');
+      }
+    } catch (error) {
+      message.error('代码美化失败: ' + (error as Error).message);
+      return code;
+    } finally {
+      setIsBeautifying(false);
     }
   };
 
@@ -710,14 +738,24 @@ console.log(data);`;
                 label: 'JavaScript',
                 children: (
                   <div>
-                    <Button 
-                      style={{ marginBottom: 8 }}
-                      onClick={() => copyAsCode(selectedRequest, 'javascript')}
-                    >
-                      复制 JavaScript 代码
-                    </Button>
+                    <Space style={{ marginBottom: 8 }}>
+                      <Button
+                        onClick={() => copyAsCode(selectedRequest, 'javascript')}
+                      >
+                        复制 JavaScript 代码
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          const code = `const response = await fetch('${selectedRequest.url}', {\n  method: '${selectedRequest.method}',\n  headers: ${JSON.stringify(selectedRequest.headers, null, 2)}${selectedRequest.payload && selectedRequest.method !== 'GET' ? `,\n  body: JSON.stringify(${JSON.stringify(selectedRequest.payload, null, 2)})` : ''}\n});\n\nconst data = await response.json();\nconsole.log(data);`;
+                          await beautifyCode(code);
+                        }}
+                        loading={isBeautifying}
+                      >
+                        美化代码
+                      </Button>
+                    </Space>
                     <pre style={{ background: '#f5f5f5', padding: 12, borderRadius: 4, overflow: 'auto' }}>
-                      {`const response = await fetch('${selectedRequest.url}', {\n  method: '${selectedRequest.method}',\n  headers: ${JSON.stringify(selectedRequest.headers, null, 2)}${selectedRequest.payload && selectedRequest.method !== 'GET' ? `,\n  body: JSON.stringify(${JSON.stringify(selectedRequest.payload, null, 2)})` : ''}\n});\n\nconst data = await response.json();\nconsole.log(data);`}
+                      {beautifiedCode || `const response = await fetch('${selectedRequest.url}', {\n  method: '${selectedRequest.method}',\n  headers: ${JSON.stringify(selectedRequest.headers, null, 2)}${selectedRequest.payload && selectedRequest.method !== 'GET' ? `,\n  body: JSON.stringify(${JSON.stringify(selectedRequest.payload, null, 2)})` : ''}\n});\n\nconst data = await response.json();\nconsole.log(data);`}
                     </pre>
                   </div>
                 )

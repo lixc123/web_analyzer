@@ -2,6 +2,7 @@ import asyncio
 import json
 import hashlib
 import logging
+import uuid
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
@@ -196,45 +197,45 @@ class AnalysisService:
             results = {}
             suspicious_requests = []
             
-            # 创建并发分析任务
-            tasks = []
-            
+            # 创建并发分析任务（使用字典避免索引依赖）
+            analysis_tasks = {}
+
             if analysis_type in ["all", "entropy"]:
-                tasks.append(asyncio.create_task(
+                analysis_tasks["entropy"] = asyncio.create_task(
                     asyncio.get_event_loop().run_in_executor(
                         self._executor,
                         self.analyzer.analyze_entropy,
                         request_records,
                         config.get("min_entropy", 4.0)
                     )
-                ))
-            else:
-                tasks.append(asyncio.create_task(asyncio.sleep(0)))  # 占位任务
-            
+                )
+
             if analysis_type in ["all", "sensitive_params"]:
-                tasks.append(asyncio.create_task(
+                analysis_tasks["sensitive_params"] = asyncio.create_task(
                     asyncio.get_event_loop().run_in_executor(
                         self._executor,
                         self.analyzer.detect_sensitive_parameters,
                         request_records,
                         config.get("sensitive_keywords", [])
                     )
-                ))
-            else:
-                tasks.append(asyncio.create_task(asyncio.sleep(0)))  # 占位任务
-            
+                )
+
             # 等待所有分析任务完成
-            analysis_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+            if analysis_tasks:
+                completed_results = await asyncio.gather(*analysis_tasks.values(), return_exceptions=True)
+                analysis_results = dict(zip(analysis_tasks.keys(), completed_results))
+            else:
+                analysis_results = {}
+
             # 处理熵值分析结果
-            if analysis_type in ["all", "entropy"] and not isinstance(analysis_results[0], Exception):
-                entropy_results = analysis_results[0]
+            if "entropy" in analysis_results and not isinstance(analysis_results["entropy"], Exception):
+                entropy_results = analysis_results["entropy"]
                 results["entropy"] = entropy_results
                 suspicious_requests.extend(entropy_results.get("high_entropy_requests", []))
-            
+
             # 处理敏感参数分析结果
-            if analysis_type in ["all", "sensitive_params"] and not isinstance(analysis_results[1], Exception):
-                sensitive_results = analysis_results[1]
+            if "sensitive_params" in analysis_results and not isinstance(analysis_results["sensitive_params"], Exception):
+                sensitive_results = analysis_results["sensitive_params"]
                 results["sensitive_params"] = sensitive_results
                 suspicious_requests.extend(sensitive_results.get("suspicious_requests", []))
             
@@ -292,8 +293,15 @@ class AnalysisService:
     async def analyze_entropy(self, session_id: str, min_entropy: float = 4.0) -> List[Dict]:
         """单独执行熵值分析"""
         requests = await self._load_session_requests(session_id)
-        request_records = [RequestRecord.from_dict(req) for req in requests]
-        
+
+        # 统一类型转换逻辑
+        request_records = []
+        for req in requests:
+            if isinstance(req, dict):
+                request_records.append(RequestRecord.from_dict(req))
+            elif isinstance(req, RequestRecord):
+                request_records.append(req)
+
         # 使用现有熵值分析算法 (零修改)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
@@ -301,14 +309,21 @@ class AnalysisService:
             request_records,
             min_entropy
         )
-        
+
         return result.get("high_entropy_requests", [])
     
     async def analyze_sensitive_params(self, session_id: str, custom_keywords: List[str] = None) -> List[Dict]:
         """单独执行敏感参数分析"""
         requests = await self._load_session_requests(session_id)
-        request_records = [RequestRecord.from_dict(req) for req in requests]
-        
+
+        # 统一类型转换逻辑
+        request_records = []
+        for req in requests:
+            if isinstance(req, dict):
+                request_records.append(RequestRecord.from_dict(req))
+            elif isinstance(req, RequestRecord):
+                request_records.append(req)
+
         # 使用现有敏感参数检测 (零修改)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
@@ -316,21 +331,28 @@ class AnalysisService:
             request_records,
             custom_keywords or []
         )
-        
+
         return result.get("suspicious_requests", [])
     
     async def analyze_encryption_keywords(self, session_id: str) -> List[Dict]:
         """单独执行加密关键词分析"""
         requests = await self._load_session_requests(session_id)
-        request_records = [RequestRecord.from_dict(req) for req in requests]
-        
+
+        # 统一类型转换逻辑
+        request_records = []
+        for req in requests:
+            if isinstance(req, dict):
+                request_records.append(RequestRecord.from_dict(req))
+            elif isinstance(req, RequestRecord):
+                request_records.append(req)
+
         # 使用现有加密关键词识别 (零修改)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
             self.analyzer.identify_encryption_keywords,
             request_records
         )
-        
+
         return result.get("encrypted_requests", [])
     
     async def get_analysis_summary(self, session_id: str) -> Dict:

@@ -345,7 +345,7 @@ JS_HOOK_PERFORMANCE = """
     // ============================================
     // 性能数据监控
     // ============================================
-    
+
     window.addEventListener('load', function() {
         setTimeout(() => {
             const perfData = performance.getEntriesByType('navigation')[0];
@@ -358,7 +358,7 @@ JS_HOOK_PERFORMANCE = """
                     url: window.location.href
                 });
             }
-            
+
             const resourceEntries = performance.getEntriesByType('resource');
             resourceEntries.slice(0, 50).forEach(entry => {
                 logEvent('PERFORMANCE_RESOURCE', {
@@ -371,6 +371,482 @@ JS_HOOK_PERFORMANCE = """
             });
         }, 1000);
     });
+"""
+
+# WebSocket拦截模块
+JS_HOOK_WEBSOCKET = """
+    // ============================================
+    // WebSocket拦截
+    // ============================================
+
+    const OriginalWebSocket = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+        const ws = new OriginalWebSocket(url, protocols);
+        const wsId = `ws_${timestamp()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        logEvent('WEBSOCKET_CONNECT', {
+            id: wsId,
+            url: url,
+            protocols: protocols,
+            stack: getStack()
+        });
+
+        // Hook onopen
+        const originalOnOpen = ws.onopen;
+        ws.onopen = function(event) {
+            logEvent('WEBSOCKET_OPEN', {
+                id: wsId,
+                url: url
+            });
+            if (originalOnOpen) originalOnOpen.call(this, event);
+        };
+
+        // Hook onmessage
+        const originalOnMessage = ws.onmessage;
+        ws.onmessage = function(event) {
+            let data = event.data;
+            let dataPreview = data;
+
+            // 处理不同类型的数据
+            if (data instanceof Blob) {
+                dataPreview = `[Blob ${data.size} bytes]`;
+            } else if (data instanceof ArrayBuffer) {
+                dataPreview = `[ArrayBuffer ${data.byteLength} bytes]`;
+            } else if (typeof data === 'string') {
+                dataPreview = data.length > 1000 ? data.substring(0, 1000) + '...' : data;
+            }
+
+            logEvent('WEBSOCKET_MESSAGE', {
+                id: wsId,
+                url: url,
+                direction: 'receive',
+                data: dataPreview,
+                dataType: data instanceof Blob ? 'blob' : data instanceof ArrayBuffer ? 'arraybuffer' : 'string',
+                size: data.length || data.size || data.byteLength || 0
+            });
+
+            if (originalOnMessage) originalOnMessage.call(this, event);
+        };
+
+        // Hook send
+        const originalSend = ws.send;
+        ws.send = function(data) {
+            let dataPreview = data;
+
+            if (data instanceof Blob) {
+                dataPreview = `[Blob ${data.size} bytes]`;
+            } else if (data instanceof ArrayBuffer) {
+                dataPreview = `[ArrayBuffer ${data.byteLength} bytes]`;
+            } else if (typeof data === 'string') {
+                dataPreview = data.length > 1000 ? data.substring(0, 1000) + '...' : data;
+            }
+
+            logEvent('WEBSOCKET_MESSAGE', {
+                id: wsId,
+                url: url,
+                direction: 'send',
+                data: dataPreview,
+                dataType: data instanceof Blob ? 'blob' : data instanceof ArrayBuffer ? 'arraybuffer' : 'string',
+                size: data.length || data.size || data.byteLength || 0,
+                stack: getStack()
+            });
+
+            return originalSend.call(this, data);
+        };
+
+        // Hook onerror
+        const originalOnError = ws.onerror;
+        ws.onerror = function(event) {
+            logEvent('WEBSOCKET_ERROR', {
+                id: wsId,
+                url: url
+            });
+            if (originalOnError) originalOnError.call(this, event);
+        };
+
+        // Hook onclose
+        const originalOnClose = ws.onclose;
+        ws.onclose = function(event) {
+            logEvent('WEBSOCKET_CLOSE', {
+                id: wsId,
+                url: url,
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean
+            });
+            if (originalOnClose) originalOnClose.call(this, event);
+        };
+
+        return ws;
+    };
+
+    // 保留原始WebSocket的属性
+    window.WebSocket.prototype = OriginalWebSocket.prototype;
+    window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+    window.WebSocket.OPEN = OriginalWebSocket.OPEN;
+    window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
+    window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
+"""
+
+# Crypto API拦截模块
+JS_HOOK_CRYPTO = """
+    // ============================================
+    // Crypto API拦截
+    // ============================================
+
+    if (window.crypto && window.crypto.subtle) {
+        const originalSubtle = window.crypto.subtle;
+
+        // Helper: 转换ArrayBuffer为hex字符串
+        const bufferToHex = (buffer) => {
+            if (!buffer) return '';
+            const bytes = new Uint8Array(buffer);
+            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 100);
+        };
+
+        // Hook encrypt
+        const originalEncrypt = originalSubtle.encrypt;
+        originalSubtle.encrypt = async function(algorithm, key, data) {
+            const cryptoId = `crypto_${timestamp()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            logEvent('CRYPTO_ENCRYPT', {
+                id: cryptoId,
+                algorithm: typeof algorithm === 'string' ? algorithm : algorithm.name,
+                dataSize: data.byteLength,
+                dataPreview: bufferToHex(data),
+                stack: getStack()
+            });
+
+            try {
+                const result = await originalEncrypt.call(this, algorithm, key, data);
+                logEvent('CRYPTO_ENCRYPT_RESULT', {
+                    id: cryptoId,
+                    resultSize: result.byteLength,
+                    resultPreview: bufferToHex(result)
+                });
+                return result;
+            } catch (error) {
+                logEvent('CRYPTO_ENCRYPT_ERROR', {
+                    id: cryptoId,
+                    error: error.message
+                });
+                throw error;
+            }
+        };
+
+        // Hook decrypt
+        const originalDecrypt = originalSubtle.decrypt;
+        originalSubtle.decrypt = async function(algorithm, key, data) {
+            const cryptoId = `crypto_${timestamp()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            logEvent('CRYPTO_DECRYPT', {
+                id: cryptoId,
+                algorithm: typeof algorithm === 'string' ? algorithm : algorithm.name,
+                dataSize: data.byteLength,
+                dataPreview: bufferToHex(data),
+                stack: getStack()
+            });
+
+            try {
+                const result = await originalDecrypt.call(this, algorithm, key, data);
+                logEvent('CRYPTO_DECRYPT_RESULT', {
+                    id: cryptoId,
+                    resultSize: result.byteLength,
+                    resultPreview: bufferToHex(result)
+                });
+                return result;
+            } catch (error) {
+                logEvent('CRYPTO_DECRYPT_ERROR', {
+                    id: cryptoId,
+                    error: error.message
+                });
+                throw error;
+            }
+        };
+
+        // Hook digest
+        const originalDigest = originalSubtle.digest;
+        originalSubtle.digest = async function(algorithm, data) {
+            const cryptoId = `crypto_${timestamp()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            logEvent('CRYPTO_DIGEST', {
+                id: cryptoId,
+                algorithm: typeof algorithm === 'string' ? algorithm : algorithm.name,
+                dataSize: data.byteLength,
+                dataPreview: bufferToHex(data),
+                stack: getStack()
+            });
+
+            try {
+                const result = await originalDigest.call(this, algorithm, data);
+                logEvent('CRYPTO_DIGEST_RESULT', {
+                    id: cryptoId,
+                    hash: bufferToHex(result)
+                });
+                return result;
+            } catch (error) {
+                logEvent('CRYPTO_DIGEST_ERROR', {
+                    id: cryptoId,
+                    error: error.message
+                });
+                throw error;
+            }
+        };
+
+        // Hook sign
+        const originalSign = originalSubtle.sign;
+        originalSubtle.sign = async function(algorithm, key, data) {
+            const cryptoId = `crypto_${timestamp()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            logEvent('CRYPTO_SIGN', {
+                id: cryptoId,
+                algorithm: typeof algorithm === 'string' ? algorithm : algorithm.name,
+                dataSize: data.byteLength,
+                dataPreview: bufferToHex(data),
+                stack: getStack()
+            });
+
+            try {
+                const result = await originalSign.call(this, algorithm, key, data);
+                logEvent('CRYPTO_SIGN_RESULT', {
+                    id: cryptoId,
+                    signatureSize: result.byteLength,
+                    signaturePreview: bufferToHex(result)
+                });
+                return result;
+            } catch (error) {
+                logEvent('CRYPTO_SIGN_ERROR', {
+                    id: cryptoId,
+                    error: error.message
+                });
+                throw error;
+            }
+        };
+
+        // Hook verify
+        const originalVerify = originalSubtle.verify;
+        originalSubtle.verify = async function(algorithm, key, signature, data) {
+            const cryptoId = `crypto_${timestamp()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            logEvent('CRYPTO_VERIFY', {
+                id: cryptoId,
+                algorithm: typeof algorithm === 'string' ? algorithm : algorithm.name,
+                signatureSize: signature.byteLength,
+                dataSize: data.byteLength,
+                stack: getStack()
+            });
+
+            try {
+                const result = await originalVerify.call(this, algorithm, key, signature, data);
+                logEvent('CRYPTO_VERIFY_RESULT', {
+                    id: cryptoId,
+                    valid: result
+                });
+                return result;
+            } catch (error) {
+                logEvent('CRYPTO_VERIFY_ERROR', {
+                    id: cryptoId,
+                    error: error.message
+                });
+                throw error;
+            }
+        };
+
+        // Hook getRandomValues
+        const originalGetRandomValues = window.crypto.getRandomValues;
+        window.crypto.getRandomValues = function(array) {
+            logEvent('CRYPTO_RANDOM', {
+                length: array.length,
+                type: array.constructor.name,
+                stack: getStack()
+            });
+            return originalGetRandomValues.call(this, array);
+        };
+    }
+"""
+
+# 存储数据完整导出模块
+JS_HOOK_STORAGE_EXPORT = """
+    // ============================================
+    // 存储数据完整导出
+    // ============================================
+
+    // 导出localStorage完整数据
+    const exportLocalStorage = () => {
+        const data = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            data[key] = localStorage.getItem(key);
+        }
+        return data;
+    };
+
+    // 导出sessionStorage完整数据
+    const exportSessionStorage = () => {
+        const data = {};
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            data[key] = sessionStorage.getItem(key);
+        }
+        return data;
+    };
+
+    // 导出Cookies
+    const exportCookies = () => {
+        return document.cookie.split(';').map(cookie => {
+            const [name, ...valueParts] = cookie.trim().split('=');
+            return {
+                name: name,
+                value: valueParts.join('=')
+            };
+        }).filter(c => c.name);
+    };
+
+    // 导出IndexedDB数据
+    const exportIndexedDB = async () => {
+        const databases = await indexedDB.databases();
+        const result = {};
+
+        for (const dbInfo of databases) {
+            try {
+                const db = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(dbInfo.name);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+
+                const stores = Array.from(db.objectStoreNames);
+                result[dbInfo.name] = {
+                    version: db.version,
+                    stores: stores,
+                    data: {}
+                };
+
+                for (const storeName of stores) {
+                    const tx = db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const allData = await new Promise((resolve, reject) => {
+                        const request = store.getAll();
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    result[dbInfo.name].data[storeName] = allData;
+                }
+
+                db.close();
+            } catch (error) {
+                result[dbInfo.name] = { error: error.message };
+            }
+        }
+
+        return result;
+    };
+
+    // 页面加载完成后导出所有存储数据
+    window.addEventListener('load', async function() {
+        setTimeout(async () => {
+            try {
+                const storageData = {
+                    localStorage: exportLocalStorage(),
+                    sessionStorage: exportSessionStorage(),
+                    cookies: exportCookies(),
+                    indexedDB: await exportIndexedDB()
+                };
+
+                logEvent('STORAGE_EXPORT', {
+                    localStorageKeys: Object.keys(storageData.localStorage).length,
+                    sessionStorageKeys: Object.keys(storageData.sessionStorage).length,
+                    cookiesCount: storageData.cookies.length,
+                    indexedDBCount: Object.keys(storageData.indexedDB).length,
+                    data: storageData
+                });
+            } catch (error) {
+                logEvent('STORAGE_EXPORT_ERROR', {
+                    error: error.message
+                });
+            }
+        }, 2000);
+    });
+"""
+
+# 状态管理Hook（Redux/Vuex/Pinia等）
+JS_HOOK_STATE_MANAGEMENT = """
+    // Hook Redux DevTools
+    (function() {
+        const origDefineProperty = Object.defineProperty;
+        Object.defineProperty = function(obj, prop, descriptor) {
+            if (prop === '__REDUX_DEVTOOLS_EXTENSION__' || prop === 'devToolsExtension') {
+                const origGet = descriptor.get;
+                descriptor.get = function() {
+                    const devTools = origGet ? origGet.call(this) : undefined;
+                    if (devTools && devTools.connect) {
+                        const origConnect = devTools.connect;
+                        devTools.connect = function(options) {
+                            const instance = origConnect.call(this, options);
+                            const origSubscribe = instance.subscribe;
+                            instance.subscribe = function(listener) {
+                                return origSubscribe.call(this, function(message) {
+                                    if (message.type === 'DISPATCH' && message.state) {
+                                        console.log('[STATE_REDUX]', JSON.stringify({
+                                            timestamp: Date.now(),
+                                            state: message.state,
+                                            action: message.payload
+                                        }));
+                                    }
+                                    return listener(message);
+                                });
+                            };
+                            return instance;
+                        };
+                    }
+                    return devTools;
+                };
+            }
+            return origDefineProperty.call(this, obj, prop, descriptor);
+        };
+    })();
+
+    // Hook Vuex
+    if (window.Vue && window.Vuex) {
+        const origInstall = window.Vuex.Store.prototype.commit;
+        window.Vuex.Store.prototype.commit = function(type, payload) {
+            console.log('[STATE_VUEX]', JSON.stringify({
+                timestamp: Date.now(),
+                mutation: type,
+                payload: payload,
+                state: this.state
+            }));
+            return origInstall.call(this, type, payload);
+        };
+    }
+
+    // Hook Pinia
+    setTimeout(() => {
+        if (window.__PINIA__) {
+            const stores = window.__PINIA__.state.value;
+            Object.keys(stores).forEach(key => {
+                console.log('[STATE_PINIA]', JSON.stringify({
+                    timestamp: Date.now(),
+                    store: key,
+                    state: stores[key]
+                }));
+            });
+        }
+    }, 1000);
+
+    // 全局变量快照
+    setTimeout(() => {
+        const globalSnapshot = {};
+        ['__INITIAL_STATE__', '__PRELOADED_STATE__', 'APP_STATE', 'GLOBAL_CONFIG'].forEach(key => {
+            if (window[key]) globalSnapshot[key] = window[key];
+        });
+        if (Object.keys(globalSnapshot).length > 0) {
+            console.log('[STATE_GLOBAL]', JSON.stringify({
+                timestamp: Date.now(),
+                snapshot: globalSnapshot
+            }));
+        }
+    }, 500);
 """
 
 # 结束代码
@@ -397,7 +873,7 @@ JS_HOOK_SCRIPT = (
 def generate_hook_script(options: dict = None) -> str:
     """
     根据配置选项生成 JS Hook 脚本
-    
+
     Args:
         options: Hook 选项字典，包含以下键：
             - network: 网络请求拦截 (fetch/XHR)
@@ -408,44 +884,60 @@ def generate_hook_script(options: dict = None) -> str:
             - navigation: 导航历史跟踪
             - console: Console日志拦截
             - performance: 性能数据监控
-    
+            - websocket: WebSocket拦截
+            - crypto: Crypto API拦截
+            - storageExport: 存储数据完整导出
+            - stateManagement: 状态管理拦截 (Redux/Vuex/Pinia)
+
     Returns:
         生成的 JS Hook 脚本字符串
     """
     if options is None:
         # 默认只开启网络请求
         options = {'network': True}
-    
+
     # 检查是否所有选项都关闭
     if not any(options.values()):
         return ""  # 不注入任何脚本
-    
+
     script_parts = [JS_HOOK_BASE]
-    
+
     if options.get('network', False):
         script_parts.append(JS_HOOK_NETWORK)
-    
+
     if options.get('storage', False):
         script_parts.append(JS_HOOK_STORAGE)
-    
+
     if options.get('userInteraction', False):
         script_parts.append(JS_HOOK_USER_INTERACTION)
-    
+
     if options.get('form', False):
         script_parts.append(JS_HOOK_FORM)
-    
+
     if options.get('dom', False):
         script_parts.append(JS_HOOK_DOM)
-    
+
     if options.get('navigation', False):
         script_parts.append(JS_HOOK_NAVIGATION)
-    
+
     if options.get('console', False):
         script_parts.append(JS_HOOK_CONSOLE)
-    
+
     if options.get('performance', False):
         script_parts.append(JS_HOOK_PERFORMANCE)
-    
+
+    if options.get('websocket', False):
+        script_parts.append(JS_HOOK_WEBSOCKET)
+
+    if options.get('crypto', False):
+        script_parts.append(JS_HOOK_CRYPTO)
+
+    if options.get('storageExport', False):
+        script_parts.append(JS_HOOK_STORAGE_EXPORT)
+
+    if options.get('stateManagement', False):
+        script_parts.append(JS_HOOK_STATE_MANAGEMENT)
+
     script_parts.append(JS_HOOK_END)
-    
+
     return ''.join(script_parts)

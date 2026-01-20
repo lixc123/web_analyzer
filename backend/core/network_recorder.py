@@ -165,20 +165,24 @@ class NetworkRecorder:
 
     def _on_console(self, message: Any) -> None:  # message: playwright.async_api.ConsoleMessage
         text = message.text
-        
+
         # 处理所有类型的Web Recorder事件
         if text.startswith("[WEB_RECORDER_"):
             self._log(text)
             if self._archiver is not None:
                 self._archiver.append_hook_line(text)
-            
+
             # 处理不同类型的浏览器数据
             self._process_browser_data(text)
-            
+
             # 处理网络请求相关的调用栈关联
             if "FETCH_" in text or "XHR_" in text:
                 self._associate_call_stack(text)
-        
+
+            # 处理WebSocket事件
+            if "WEBSOCKET_" in text:
+                self._process_websocket_event(text)
+
         # 保持对旧格式的兼容性
         elif text.startswith("[FETCH_HOOK]") or text.startswith("[XHR_HOOK]"):
             self._log(text)
@@ -498,3 +502,45 @@ class NetworkRecorder:
                     self._log(f"截图保存: {reason} -> {screenshot_path}")
         except Exception as e:
             self._log(f"截图失败 ({reason}): {e}")
+
+    def _process_websocket_event(self, console_text: str) -> None:
+        """处理WebSocket事件"""
+        try:
+            import json
+            import re
+
+            match = re.match(r'\[WEB_RECORDER_([^\]]+)\]\s*(.+)', console_text)
+            if not match:
+                return
+
+            event_type = match.group(1)
+            data_str = match.group(2)
+
+            try:
+                data = json.loads(data_str)
+            except json.JSONDecodeError:
+                self._log(f"无法解析WebSocket数据: {data_str}")
+                return
+
+            # 记录WebSocket事件
+            if event_type == 'WEBSOCKET_CONNECT':
+                self._log(f"[WebSocket] 连接: {data.get('url', '')}")
+            elif event_type == 'WEBSOCKET_OPEN':
+                self._log(f"[WebSocket] 已打开: {data.get('url', '')}")
+            elif event_type == 'WEBSOCKET_MESSAGE':
+                direction = data.get('direction', '')
+                size = data.get('size', 0)
+                self._log(f"[WebSocket] 消息 {direction}: {size} bytes")
+            elif event_type == 'WEBSOCKET_CLOSE':
+                code = data.get('code', '')
+                reason = data.get('reason', '')
+                self._log(f"[WebSocket] 关闭: code={code}, reason={reason}")
+            elif event_type == 'WEBSOCKET_ERROR':
+                self._log(f"[WebSocket] 错误: {data.get('url', '')}")
+
+            # 保存到归档器
+            if self._archiver is not None:
+                self._archiver.save_browser_data(event_type, data)
+
+        except Exception as e:
+            self._log(f"处理WebSocket事件失败: {e}")

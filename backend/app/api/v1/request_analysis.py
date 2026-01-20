@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 import logging
 import uuid
+import threading
 
 router = APIRouter()
 
@@ -47,8 +48,9 @@ class CallStackFrame(BaseModel):
     isUserCode: bool
     executionTime: Optional[int] = None
 
-# 全局请求存储
+# 全局请求存储（线程安全）
 recorded_requests: List[HttpRequestRecord] = []
+requests_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
 @router.get("/requests")
@@ -61,7 +63,8 @@ async def get_recorded_requests(
 ):
     """获取录制的HTTP请求列表"""
     try:
-        filtered_requests = recorded_requests.copy()
+        with requests_lock:
+            filtered_requests = recorded_requests.copy()
         
         # 方法筛选
         if method and method != 'all':
@@ -137,9 +140,10 @@ async def replay_request(request: ReplayRequestModel):
                     payload=request.payload,
                     response=response_text[:1000] if response_text else None  # 限制响应大小
                 )
-                
-                # 添加到请求记录
-                recorded_requests.insert(0, replay_record)
+
+                # 添加到请求记录（线程安全）
+                with requests_lock:
+                    recorded_requests.insert(0, replay_record)
                 
                 return {
                     'success': True,
@@ -162,19 +166,20 @@ async def replay_request(request: ReplayRequestModel):
 async def get_request_details(request_id: str):
     """获取请求详细信息"""
     try:
-        request_record = next(
-            (req for req in recorded_requests if req.id == request_id), 
-            None
-        )
-        
+        with requests_lock:
+            request_record = next(
+                (req for req in recorded_requests if req.id == request_id),
+                None
+            )
+
         if not request_record:
             raise HTTPException(status_code=404, detail=f"请求记录不存在: {request_id}")
-        
+
         return {
             'request': request_record.dict(),
             'callStack': generate_mock_call_stack(request_record)  # 模拟调用栈
         }
-        
+
     except Exception as e:
         logger.error(f"获取请求详情失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -183,23 +188,24 @@ async def get_request_details(request_id: str):
 async def get_request_call_stack(request_id: str):
     """获取请求的调用栈信息"""
     try:
-        request_record = next(
-            (req for req in recorded_requests if req.id == request_id), 
-            None
-        )
-        
+        with requests_lock:
+            request_record = next(
+                (req for req in recorded_requests if req.id == request_id),
+                None
+            )
+
         if not request_record:
             raise HTTPException(status_code=404, detail=f"请求记录不存在: {request_id}")
-        
+
         # 生成模拟调用栈
         call_stack = generate_detailed_call_stack(request_record)
-        
+
         return {
             'request_id': request_id,
             'callStack': call_stack,
             'analysis': analyze_call_stack_performance(call_stack)
         }
-        
+
     except Exception as e:
         logger.error(f"获取调用栈失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -240,8 +246,9 @@ async def clear_recorded_requests():
     """清空录制的请求"""
     try:
         global recorded_requests
-        count = len(recorded_requests)
-        recorded_requests.clear()
+        with requests_lock:
+            count = len(recorded_requests)
+            recorded_requests.clear()
         
         return {
             'success': True,
@@ -257,39 +264,43 @@ async def clear_recorded_requests():
 async def get_request_statistics():
     """获取请求统计信息"""
     try:
-        if not recorded_requests:
-            return {
-                'total': 0,
-                'methods': {},
-                'status_codes': {},
-                'avg_duration': 0,
-                'total_size': 0
-            }
-        
+        with requests_lock:
+            if not recorded_requests:
+                return {
+                    'total': 0,
+                    'methods': {},
+                    'status_codes': {},
+                    'avg_duration': 0,
+                    'total_size': 0
+                }
+
+            # 创建副本以避免长时间持有锁
+            requests_copy = recorded_requests.copy()
+
         # 方法统计
         methods = {}
-        for req in recorded_requests:
+        for req in requests_copy:
             methods[req.method] = methods.get(req.method, 0) + 1
-        
+
         # 状态码统计
         status_codes = {}
-        for req in recorded_requests:
+        for req in requests_copy:
             status_codes[str(req.status)] = status_codes.get(str(req.status), 0) + 1
-        
+
         # 计算平均响应时间和总大小
-        total_duration = sum(req.duration for req in recorded_requests)
-        avg_duration = total_duration / len(recorded_requests)
-        total_size = sum(req.size for req in recorded_requests)
-        
+        total_duration = sum(req.duration for req in requests_copy)
+        avg_duration = total_duration / len(requests_copy)
+        total_size = sum(req.size for req in requests_copy)
+
         return {
-            'total': len(recorded_requests),
+            'total': len(requests_copy),
             'methods': methods,
             'status_codes': status_codes,
             'avg_duration': round(avg_duration, 2),
             'total_size': total_size,
-            'success_rate': len([req for req in recorded_requests if 200 <= req.status < 300]) / len(recorded_requests) * 100
+            'success_rate': len([req for req in requests_copy if 200 <= req.status < 300]) / len(requests_copy) * 100
         }
-        
+
     except Exception as e:
         logger.error(f"获取统计信息失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
