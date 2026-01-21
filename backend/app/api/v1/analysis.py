@@ -179,12 +179,55 @@ async def list_analysis_rules(db: Session = Depends(get_db)):
     try:
         analysis_service = AnalysisService()
         rules = await analysis_service.list_rules()
-        
+
         return {"rules": rules}
-        
+
     except Exception as e:
         logger.error(f"获取规则列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取规则列表失败: {str(e)}")
+
+@router.put("/rules/{rule_id}")
+async def update_analysis_rule(
+    rule_id: str,
+    rule_name: str,
+    rule_config: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """更新分析规则"""
+    try:
+        analysis_service = AnalysisService()
+        await analysis_service.update_rule(rule_id, rule_name, rule_config)
+
+        return {
+            "rule_id": rule_id,
+            "rule_name": rule_name,
+            "status": "updated",
+            "message": "规则更新成功"
+        }
+
+    except Exception as e:
+        logger.error(f"更新规则失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新规则失败: {str(e)}")
+
+@router.delete("/rules/{rule_id}")
+async def delete_analysis_rule(
+    rule_id: str,
+    db: Session = Depends(get_db)
+):
+    """删除分析规则"""
+    try:
+        analysis_service = AnalysisService()
+        await analysis_service.delete_rule(rule_id)
+
+        return {
+            "rule_id": rule_id,
+            "status": "deleted",
+            "message": "规则删除成功"
+        }
+
+    except Exception as e:
+        logger.error(f"删除规则失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除规则失败: {str(e)}")
 
 @router.get("/history/{session_id}")
 async def get_analysis_history(

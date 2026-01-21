@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Divider, message } from 'antd';
+import { Layout, Divider, message, Button, Space, Badge, Popconfirm } from 'antd';
+import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import SessionSelector from './components/SessionSelector';
 import RequestList from './components/RequestList';
 import QwenTerminal from './components/QwenTerminal';
@@ -36,6 +37,8 @@ const AnalysisWorkbench: React.FC = () => {
   const [sessions, setSessions] = useState<CrawlerSession[]>([]);
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingLoading, setRecordingLoading] = useState(false);
 
   // 加载所有爬虫会话
   const loadSessions = async () => {
@@ -80,6 +83,78 @@ const AnalysisWorkbench: React.FC = () => {
   const handleSessionChange = (session: CrawlerSession) => {
     setSelectedSession(session);
     loadSessionRequests(session.session_id);
+    // 检查会话状态，更新录制状态
+    setRecording(session.status === 'running');
+  };
+
+  // 开始录制
+  const handleStartRecording = async () => {
+    if (!selectedSession) {
+      message.warning('请先选择一个会话');
+      return;
+    }
+
+    setRecordingLoading(true);
+    try {
+      const response = await fetch(`/api/v1/crawler/start-recording/${selectedSession.session_id}`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        message.success(data.message || '录制已开始');
+        setRecording(true);
+        // 刷新会话列表
+        loadSessions();
+      } else {
+        const error = await response.json();
+        message.error(error.detail || '开始录制失败');
+      }
+    } catch (error) {
+      console.error('开始录制失败:', error);
+      message.error('开始录制失败');
+    } finally {
+      setRecordingLoading(false);
+    }
+  };
+
+  // 停止录制
+  const handleStopRecording = async () => {
+    if (!selectedSession) {
+      message.warning('请先选择一个会话');
+      return;
+    }
+
+    setRecordingLoading(true);
+    try {
+      const response = await fetch(`/api/v1/crawler/stop-recording/${selectedSession.session_id}`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        message.success(data.message || '录制已停止');
+        setRecording(false);
+        // 刷新会话列表和请求记录
+        loadSessions();
+        loadSessionRequests(selectedSession.session_id);
+      } else {
+        const error = await response.json();
+        message.error(error.detail || '停止录制失败');
+      }
+    } catch (error) {
+      console.error('停止录制失败:', error);
+      message.error('停止录制失败');
+    } finally {
+      setRecordingLoading(false);
+    }
+  };
+
+  // 刷新请求列表
+  const handleRefreshRequests = () => {
+    if (selectedSession) {
+      loadSessionRequests(selectedSession.session_id);
+    }
   };
 
   useEffect(() => {
@@ -108,9 +183,59 @@ const AnalysisWorkbench: React.FC = () => {
             </div>
             
             <Divider />
-            
+
             <div className="requests-section">
-              <h3>请求记录 ({requests.length})</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ margin: 0 }}>
+                  请求记录
+                  <Badge
+                    count={requests.length}
+                    style={{ marginLeft: 8, backgroundColor: '#52c41a' }}
+                  />
+                </h3>
+                <Space>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleRefreshRequests}
+                    loading={loading}
+                    size="small"
+                    disabled={!selectedSession}
+                  >
+                    刷新
+                  </Button>
+                  {recording ? (
+                    <Popconfirm
+                      title="确定要停止录制吗？"
+                      description="停止后将无法继续录制当前会话"
+                      onConfirm={handleStopRecording}
+                      okText="确定"
+                      cancelText="取消"
+                    >
+                      <Button
+                        type="primary"
+                        danger
+                        icon={<PauseCircleOutlined />}
+                        loading={recordingLoading}
+                        disabled={!selectedSession}
+                        size="small"
+                      >
+                        停止录制
+                      </Button>
+                    </Popconfirm>
+                  ) : (
+                    <Button
+                      type="primary"
+                      icon={<PlayCircleOutlined />}
+                      onClick={handleStartRecording}
+                      loading={recordingLoading}
+                      disabled={!selectedSession}
+                      size="small"
+                    >
+                      开始录制
+                    </Button>
+                  )}
+                </Space>
+              </div>
               <RequestList
                 requests={requests}
                 selectedSession={selectedSession}

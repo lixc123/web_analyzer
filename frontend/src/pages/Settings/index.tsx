@@ -28,9 +28,13 @@ import {
   KeyOutlined,
   DatabaseOutlined,
   RobotOutlined,
-  BugOutlined
+  BugOutlined,
+  FilterOutlined,
+  UnorderedListOutlined
 } from '@ant-design/icons'
 import { useGlobalStore } from '@store/GlobalStore'
+import FilterManagement from '@components/FilterManagement'
+import TaskManagement from '@components/TaskManagement'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -461,6 +465,26 @@ const SettingsPage: React.FC = () => {
 
         </div>
       )
+    },
+    {
+      key: 'filters',
+      label: (
+        <span>
+          <FilterOutlined />
+          过滤器管理
+        </span>
+      ),
+      children: <FilterManagement />
+    },
+    {
+      key: 'tasks',
+      label: (
+        <span>
+          <UnorderedListOutlined />
+          任务管理
+        </span>
+      ),
+      children: <TaskManagement />
     }
   ]
 

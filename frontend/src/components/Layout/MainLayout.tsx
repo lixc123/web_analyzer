@@ -26,7 +26,8 @@ import {
   FullscreenOutlined,
   FullscreenExitOutlined,
   ApiOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  HistoryOutlined
 } from '@ant-design/icons'
 import { useGlobalStore, useWebSocketStatus, useSystemStatus } from '@store/GlobalStore'
 import { useAuth } from '@components/Auth/AuthProvider'
@@ -95,8 +96,20 @@ const MainLayout: React.FC = () => {
       title: '流量数据分析'
     },
     {
-      key: '/terminal',
+      key: '/code-generator',
       icon: <CodeOutlined />,
+      label: '代码生成',
+      title: '自动生成爬虫代码'
+    },
+    {
+      key: '/request-recorder',
+      icon: <HistoryOutlined />,
+      label: '请求录制',
+      title: '录制和重放HTTP请求'
+    },
+    {
+      key: '/terminal',
+      icon: <RobotOutlined />,
       label: 'AI终端',
       title: 'AI分析助手'
     },

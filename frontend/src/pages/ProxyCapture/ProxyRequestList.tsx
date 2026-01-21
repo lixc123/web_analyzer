@@ -32,16 +32,24 @@ const { Option } = Select
 const { Text } = Typography
 
 interface ProxyRequest {
-  request_id: string
+  id: string
   method: string
   url: string
-  source: 'browser' | 'desktop' | 'ios' | 'android'
-  device_id?: string
-  device_model?: string
-  timestamp: string
+  source: 'web_browser' | 'desktop_app' | 'mobile_ios' | 'mobile_android'
+  device_info?: {
+    platform?: string
+    device?: string
+    browser?: string
+    os?: string
+  }
+  timestamp: number
   status_code?: number
   response_time?: number
-  size?: number
+  response_size?: number
+  headers?: Record<string, string>
+  body?: string
+  response_headers?: Record<string, string>
+  response_body?: string
 }
 
 const ProxyRequestList: React.FC = () => {
@@ -68,7 +76,7 @@ const ProxyRequestList: React.FC = () => {
         const newRequests = [...recentRequests, ...prev]
         // 去重并限制数量
         const uniqueRequests = Array.from(
-          new Map(newRequests.map(r => [r.request_id, r])).values()
+          new Map(newRequests.map(r => [r.id || r.request_id, r])).values()
         ).slice(0, 500)
         return uniqueRequests
       })
@@ -90,7 +98,8 @@ const ProxyRequestList: React.FC = () => {
       filtered = filtered.filter(r =>
         r.url.toLowerCase().includes(search) ||
         r.method.toLowerCase().includes(search) ||
-        r.device_model?.toLowerCase().includes(search)
+        r.device_info?.device?.toLowerCase().includes(search) ||
+        r.device_info?.platform?.toLowerCase().includes(search)
       )
     }
 
@@ -100,10 +109,11 @@ const ProxyRequestList: React.FC = () => {
   const loadRequests = async () => {
     setLoading(true)
     try {
-      // 这里假设后端有获取代理请求列表的API
-      // 如果没有，可以只依赖WebSocket实时推送
       const response = await axios.get('/api/v1/proxy/requests', {
-        params: { limit: 100 }
+        params: {
+          limit: 100,
+          source: sourceFilter !== 'all' ? sourceFilter : undefined
+        }
       })
       setRequests(response.data.requests || [])
     } catch (error) {
@@ -119,21 +129,30 @@ const ProxyRequestList: React.FC = () => {
     clearRequests()
   }
 
-  const handleViewDetail = (record: ProxyRequest) => {
-    setSelectedRequest(record)
-    setDetailModalVisible(true)
+  const handleViewDetail = async (record: ProxyRequest) => {
+    try {
+      // 从API获取完整的请求详情
+      const response = await axios.get(`/api/v1/proxy/request/${record.id}`)
+      setSelectedRequest(response.data)
+      setDetailModalVisible(true)
+    } catch (error) {
+      console.error('获取请求详情失败:', error)
+      // 如果API失败，使用当前记录
+      setSelectedRequest(record)
+      setDetailModalVisible(true)
+    }
   }
 
   // 获取来源图标
   const getSourceIcon = (source: string) => {
     switch (source) {
-      case 'browser':
+      case 'web_browser':
         return <ChromeOutlined style={{ color: '#1890ff' }} />
-      case 'desktop':
+      case 'desktop_app':
         return <DesktopOutlined style={{ color: '#52c41a' }} />
-      case 'ios':
+      case 'mobile_ios':
         return <AppleOutlined style={{ color: '#000000' }} />
-      case 'android':
+      case 'mobile_android':
         return <AndroidOutlined style={{ color: '#3ddc84' }} />
       default:
         return <GlobalOutlined />
@@ -143,10 +162,10 @@ const ProxyRequestList: React.FC = () => {
   // 获取来源标签
   const getSourceTag = (source: string) => {
     const config = {
-      browser: { color: 'blue', text: '浏览器' },
-      desktop: { color: 'green', text: '桌面应用' },
-      ios: { color: 'default', text: 'iOS' },
-      android: { color: 'cyan', text: 'Android' }
+      web_browser: { color: 'blue', text: '浏览器' },
+      desktop_app: { color: 'green', text: '桌面应用' },
+      mobile_ios: { color: 'default', text: 'iOS' },
+      mobile_android: { color: 'cyan', text: 'Android' }
     }
     const { color, text } = config[source as keyof typeof config] || { color: 'default', text: source }
     return <Tag color={color}>{text}</Tag>
@@ -185,8 +204,8 @@ const ProxyRequestList: React.FC = () => {
   }
 
   // 格式化时间
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp)
+  const formatTime = (timestamp: number | string) => {
+    const date = typeof timestamp === 'number' ? new Date(timestamp * 1000) : new Date(timestamp)
     return date.toLocaleTimeString('zh-CN', { hour12: false })
   }
 
@@ -197,7 +216,7 @@ const ProxyRequestList: React.FC = () => {
       key: 'source',
       width: 100,
       render: (source: string, record) => (
-        <Tooltip title={record.device_model || source}>
+        <Tooltip title={record.device_info?.device || record.device_info?.platform || source}>
           <Space>
             {getSourceIcon(source)}
             {getSourceTag(source)}
@@ -240,8 +259,8 @@ const ProxyRequestList: React.FC = () => {
     },
     {
       title: '大小',
-      dataIndex: 'size',
-      key: 'size',
+      dataIndex: 'response_size',
+      key: 'response_size',
       width: 100,
       render: (size?: number) => (
         <Text type="secondary">{formatSize(size)}</Text>
@@ -265,7 +284,7 @@ const ProxyRequestList: React.FC = () => {
       dataIndex: 'timestamp',
       key: 'timestamp',
       width: 100,
-      render: (timestamp: string) => (
+      render: (timestamp: number) => (
         <Text type="secondary">{formatTime(timestamp)}</Text>
       )
     },
@@ -303,16 +322,16 @@ const ProxyRequestList: React.FC = () => {
               size="small"
             >
               <Option value="all">全部来源</Option>
-              <Option value="browser">
+              <Option value="web_browser">
                 <Space><ChromeOutlined />浏览器</Space>
               </Option>
-              <Option value="desktop">
+              <Option value="desktop_app">
                 <Space><DesktopOutlined />桌面应用</Space>
               </Option>
-              <Option value="ios">
+              <Option value="mobile_ios">
                 <Space><AppleOutlined />iOS</Space>
               </Option>
-              <Option value="android">
+              <Option value="mobile_android">
                 <Space><AndroidOutlined />Android</Space>
               </Option>
             </Select>
@@ -347,7 +366,7 @@ const ProxyRequestList: React.FC = () => {
         <Table
           columns={columns}
           dataSource={filteredRequests}
-          rowKey="request_id"
+          rowKey="id"
           loading={loading}
           pagination={{
             pageSize: 20,
@@ -375,7 +394,7 @@ const ProxyRequestList: React.FC = () => {
         {selectedRequest && (
           <Descriptions bordered column={2} size="small">
             <Descriptions.Item label="请求ID" span={2}>
-              {selectedRequest.request_id}
+              {selectedRequest.id}
             </Descriptions.Item>
             <Descriptions.Item label="来源">
               <Space>
@@ -383,8 +402,8 @@ const ProxyRequestList: React.FC = () => {
                 {getSourceTag(selectedRequest.source)}
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="设备型号">
-              {selectedRequest.device_model || '-'}
+            <Descriptions.Item label="设备信息">
+              {selectedRequest.device_info?.device || selectedRequest.device_info?.platform || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="HTTP方法">
               <Tag color={getMethodColor(selectedRequest.method)}>
@@ -402,14 +421,42 @@ const ProxyRequestList: React.FC = () => {
               </Text>
             </Descriptions.Item>
             <Descriptions.Item label="响应大小">
-              {formatSize(selectedRequest.size)}
+              {formatSize(selectedRequest.response_size)}
             </Descriptions.Item>
             <Descriptions.Item label="响应时间">
-              {selectedRequest.response_time ? `${selectedRequest.response_time}ms` : '-'}
+              {selectedRequest.response_time ? `${(selectedRequest.response_time * 1000).toFixed(0)}ms` : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="时间戳" span={2}>
-              {new Date(selectedRequest.timestamp).toLocaleString('zh-CN')}
+              {new Date(selectedRequest.timestamp * 1000).toLocaleString('zh-CN')}
             </Descriptions.Item>
+            {selectedRequest.headers && (
+              <Descriptions.Item label="请求头" span={2}>
+                <pre style={{ maxHeight: '200px', overflow: 'auto', fontSize: '12px' }}>
+                  {JSON.stringify(selectedRequest.headers, null, 2)}
+                </pre>
+              </Descriptions.Item>
+            )}
+            {selectedRequest.body && (
+              <Descriptions.Item label="请求体" span={2}>
+                <pre style={{ maxHeight: '200px', overflow: 'auto', fontSize: '12px' }}>
+                  {selectedRequest.body}
+                </pre>
+              </Descriptions.Item>
+            )}
+            {selectedRequest.response_headers && (
+              <Descriptions.Item label="响应头" span={2}>
+                <pre style={{ maxHeight: '200px', overflow: 'auto', fontSize: '12px' }}>
+                  {JSON.stringify(selectedRequest.response_headers, null, 2)}
+                </pre>
+              </Descriptions.Item>
+            )}
+            {selectedRequest.response_body && (
+              <Descriptions.Item label="响应体" span={2}>
+                <pre style={{ maxHeight: '200px', overflow: 'auto', fontSize: '12px' }}>
+                  {selectedRequest.response_body}
+                </pre>
+              </Descriptions.Item>
+            )}
           </Descriptions>
         )}
       </Modal>

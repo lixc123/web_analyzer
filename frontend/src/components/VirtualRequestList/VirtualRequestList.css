@@ -1,0 +1,16 @@
+.virtual-request-row {
+  transition: background-color 0.2s ease;
+}
+
+.virtual-request-row:hover {
+  background-color: #e6f7ff !important;
+  cursor: pointer;
+}
+
+.virtual-request-row .ant-btn-link {
+  font-size: 12px;
+}
+
+.virtual-request-row .ant-tag {
+  font-size: 11px;
+}

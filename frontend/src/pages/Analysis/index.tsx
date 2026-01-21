@@ -32,6 +32,10 @@ import {
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { analysisApi, crawlerApi, AnalysisConfig } from '@services/api'
+import AdvancedAnalysis from './AdvancedAnalysis'
+import RuleManagement from './RuleManagement'
+import AnalysisHistory from './AnalysisHistory'
+import AnalysisComparison from './AnalysisComparison'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -350,6 +354,26 @@ const AnalysisPage: React.FC = () => {
           />
         </Card>
       )
+    },
+    {
+      key: 'advanced',
+      label: '高级分析',
+      children: <AdvancedAnalysis sessionId={selectedSession || undefined} />
+    },
+    {
+      key: 'rules',
+      label: '规则管理',
+      children: <RuleManagement />
+    },
+    {
+      key: 'history',
+      label: '历史记录',
+      children: <AnalysisHistory />
+    },
+    {
+      key: 'comparison',
+      label: '结果比较',
+      children: <AnalysisComparison />
     }
   ]
 

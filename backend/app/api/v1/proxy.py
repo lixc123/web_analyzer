@@ -404,3 +404,77 @@ def _handle_response(response_data: dict):
                 logger.error(f"WebSocket广播响应失败: {e}")
 
     logger.info(f"捕获响应: {response_data['status_code']} {response_data['url']}")
+
+
+@router.get("/requests")
+async def get_proxy_requests(
+    source: Optional[str] = None,
+    platform: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """获取代理捕获的请求列表
+
+    Args:
+        source: 请求来源过滤 (web_browser/desktop_app/mobile_ios/mobile_android)
+        platform: 平台过滤 (Windows/macOS/Linux/iOS/Android)
+        limit: 返回数量限制，默认100
+        offset: 偏移量，默认0
+
+    Returns:
+        请求列表和总数
+    """
+    from backend.proxy.service_manager import ProxyServiceManager
+    from backend.models.unified_request import RequestSource
+
+    manager = ProxyServiceManager.get_instance()
+    storage = manager.get_storage()
+
+    # 转换source参数
+    source_enum = None
+    if source:
+        try:
+            source_enum = RequestSource(source)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"无效的source参数: {source}")
+
+    # 获取请求列表
+    requests = storage.get_requests(
+        source=source_enum,
+        platform=platform,
+        limit=limit,
+        offset=offset
+    )
+
+    # 获取统计信息
+    stats = storage.get_statistics()
+
+    return {
+        "requests": requests,
+        "total": stats['total'],
+        "limit": limit,
+        "offset": offset
+    }
+
+
+@router.get("/request/{request_id}")
+async def get_proxy_request_detail(request_id: str):
+    """获取单个请求的详细信息
+
+    Args:
+        request_id: 请求ID
+
+    Returns:
+        请求详细信息
+    """
+    from backend.proxy.service_manager import ProxyServiceManager
+
+    manager = ProxyServiceManager.get_instance()
+    storage = manager.get_storage()
+
+    request = storage.get_request_by_id(request_id)
+
+    if not request:
+        raise HTTPException(status_code=404, detail=f"请求不存在: {request_id}")
+
+    return request

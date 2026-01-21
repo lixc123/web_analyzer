@@ -11,6 +11,8 @@ import TerminalPage from '@pages/Terminal'
 import SettingsPage from '@pages/Settings'
 import ProxyCapturePage from '@pages/ProxyCapture'
 import NativeHookPage from '@pages/NativeHook'
+import CodeGeneratorPage from '@pages/CodeGenerator'
+import RequestRecorderPage from '@pages/RequestRecorder'
 import { useWebSocket } from '@hooks/useWebSocket'
 import ErrorBoundary from '@components/ErrorBoundary'
 
@@ -54,6 +56,16 @@ const App: React.FC = () => {
             <Route path="workbench" element={
               <ErrorBoundary componentName="AnalysisWorkbench">
                 <AnalysisWorkbench />
+              </ErrorBoundary>
+            } />
+            <Route path="code-generator" element={
+              <ErrorBoundary componentName="CodeGeneratorPage">
+                <CodeGeneratorPage />
+              </ErrorBoundary>
+            } />
+            <Route path="request-recorder" element={
+              <ErrorBoundary componentName="RequestRecorderPage">
+                <RequestRecorderPage />
               </ErrorBoundary>
             } />
             <Route path="terminal" element={
