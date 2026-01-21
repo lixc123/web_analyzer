@@ -42,6 +42,8 @@ const ProxyControl: React.FC = () => {
   const [statusLoading, setStatusLoading] = useState(false)
   const [clientsCount, setClientsCount] = useState(0)
   const [totalRequests, setTotalRequests] = useState(0)
+  const [firewallStatus, setFirewallStatus] = useState<any>(null)
+  const [firewallChecking, setFirewallChecking] = useState(false)
 
   // 使用WebSocket实时更新
   const { proxyStatus } = useProxyWebSocket()
@@ -50,6 +52,7 @@ const ProxyControl: React.FC = () => {
   useEffect(() => {
     checkStatus()
     fetchLocalIP()
+    checkFirewallStatus()
     // 每30秒轮询一次状态（作为WebSocket的备份）
     const interval = setInterval(checkStatus, 30000)
     return () => clearInterval(interval)
@@ -85,6 +88,18 @@ const ProxyControl: React.FC = () => {
     } catch (error) {
       console.error('获取本机IP失败:', error)
       message.error('获取本机IP失败')
+    }
+  }
+
+  const checkFirewallStatus = async () => {
+    setFirewallChecking(true)
+    try {
+      const res = await axios.get('/api/v1/proxy/firewall/status')
+      setFirewallStatus(res.data)
+    } catch (error) {
+      console.error('检查防火墙状态失败:', error)
+    } finally {
+      setFirewallChecking(false)
     }
   }
 
@@ -188,7 +203,32 @@ const ProxyControl: React.FC = () => {
           description={`移动设备请配置代理为: ${localIP}:${config.port}`}
           type="info"
           showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {/* 防火墙状态显示 */}
+      {firewallStatus && firewallStatus.supported && (
+        <Alert
+          message="防火墙状态"
+          description={
+            <div>
+              <p>{firewallStatus.message}</p>
+              {firewallStatus.enabled && (
+                <p style={{ marginBottom: 0, fontSize: '12px', color: '#666' }}>
+                  提示：如果移动设备无法连接，请检查防火墙是否允许端口 {config.port}
+                </p>
+              )}
+            </div>
+          }
+          type={firewallStatus.enabled ? 'warning' : 'success'}
+          showIcon
           style={{ marginBottom: 24 }}
+          action={
+            <Button size="small" onClick={checkFirewallStatus} loading={firewallChecking}>
+              重新检查
+            </Button>
+          }
         />
       )}
 

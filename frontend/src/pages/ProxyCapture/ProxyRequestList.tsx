@@ -11,7 +11,8 @@ import {
   Tooltip,
   Modal,
   Descriptions,
-  Typography
+  Typography,
+  message
 } from 'antd'
 import {
   ReloadOutlined,
@@ -22,7 +23,8 @@ import {
   AppleOutlined,
   AndroidOutlined,
   ChromeOutlined,
-  GlobalOutlined
+  GlobalOutlined,
+  DownloadOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useProxyWebSocket } from '@hooks/useProxyWebSocket'
@@ -60,6 +62,9 @@ const ProxyRequestList: React.FC = () => {
   const [searchText, setSearchText] = useState('')
   const [selectedRequest, setSelectedRequest] = useState<ProxyRequest | null>(null)
   const [detailModalVisible, setDetailModalVisible] = useState(false)
+  const [exportModalVisible, setExportModalVisible] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'har' | 'csv'>('har')
+  const [exportLoading, setExportLoading] = useState(false)
 
   // 使用WebSocket实时更新
   const { recentRequests, clearRequests } = useProxyWebSocket()
@@ -127,6 +132,53 @@ const ProxyRequestList: React.FC = () => {
   const handleClearRequests = () => {
     setRequests([])
     clearRequests()
+  }
+
+  const handleExport = async () => {
+    setExportLoading(true)
+    try {
+      const params = new URLSearchParams({
+        format: exportFormat,
+        limit: '1000'
+      })
+      
+      if (sourceFilter !== 'all') {
+        params.append('source', sourceFilter)
+      }
+
+      const response = await axios.get(`/api/v1/proxy/requests/export?${params.toString()}`, {
+        responseType: 'blob'
+      })
+
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      
+      // 从响应头获取文件名，或使用默认文件名
+      const contentDisposition = response.headers['content-disposition']
+      let filename = `requests_${new Date().getTime()}.${exportFormat}`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      message.success(`成功导出 ${exportFormat.toUpperCase()} 格式文件`)
+      setExportModalVisible(false)
+    } catch (error) {
+      console.error('导出失败:', error)
+      message.error('导出失败，请稍后重试')
+    } finally {
+      setExportLoading(false)
+    }
   }
 
   const handleViewDetail = async (record: ProxyRequest) => {
@@ -353,6 +405,14 @@ const ProxyRequestList: React.FC = () => {
               刷新
             </Button>
             <Button
+              icon={<DownloadOutlined />}
+              onClick={() => setExportModalVisible(true)}
+              size="small"
+              type="primary"
+            >
+              导出
+            </Button>
+            <Button
               icon={<ClearOutlined />}
               onClick={handleClearRequests}
               danger
@@ -378,6 +438,53 @@ const ProxyRequestList: React.FC = () => {
           scroll={{ x: 1200 }}
         />
       </Card>
+
+      {/* 导出Modal */}
+      <Modal
+        title="导出请求数据"
+        open={exportModalVisible}
+        onCancel={() => setExportModalVisible(false)}
+        onOk={handleExport}
+        confirmLoading={exportLoading}
+        okText="导出"
+        cancelText="取消"
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>
+            <Text strong>选择导出格式：</Text>
+          </div>
+          <Select
+            value={exportFormat}
+            onChange={setExportFormat}
+            style={{ width: '100%' }}
+          >
+            <Option value="har">
+              <Space>
+                <DownloadOutlined />
+                <span>HAR 格式 (HTTP Archive)</span>
+              </Space>
+              <div style={{ fontSize: '12px', color: '#999', marginLeft: 24 }}>
+                可导入到 Chrome DevTools、Postman 等工具
+              </div>
+            </Option>
+            <Option value="csv">
+              <Space>
+                <DownloadOutlined />
+                <span>CSV 格式 (逗号分隔)</span>
+              </Space>
+              <div style={{ fontSize: '12px', color: '#999', marginLeft: 24 }}>
+                适合用于数据分析和报表生成
+              </div>
+            </Option>
+          </Select>
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary">
+              将导出最多 1000 条请求记录
+              {sourceFilter !== 'all' && ` (已过滤: ${sourceFilter})`}
+            </Text>
+          </div>
+        </Space>
+      </Modal>
 
       {/* 请求详情Modal */}
       <Modal

@@ -34,6 +34,8 @@ async def start_proxy(config: ProxyConfig):
     """启动代理服务器"""
     try:
         from backend.proxy.service_manager import ProxyServiceManager
+        from backend.app.websocket.proxy_events import broadcaster
+        import asyncio
 
         # 获取管理器实例
         manager = ProxyServiceManager.get_instance()
@@ -63,6 +65,17 @@ async def start_proxy(config: ProxyConfig):
                 manager.stop_service()
                 raise HTTPException(status_code=500, detail=f"启用系统代理失败: {str(e)}")
 
+        # 广播代理启动状态
+        status_data = {
+            "running": True,
+            "host": config.host,
+            "port": actual_port,
+            "system_proxy_enabled": config.enable_system_proxy
+        }
+        main_loop = manager.get_main_event_loop()
+        if main_loop:
+            asyncio.run_coroutine_threadsafe(broadcaster.broadcast_status(status_data), main_loop)
+
         return {
             "status": "success",
             "message": "代理服务启动成功",
@@ -80,6 +93,8 @@ async def stop_proxy():
     """停止代理服务器"""
     try:
         from backend.proxy.service_manager import ProxyServiceManager
+        from backend.app.websocket.proxy_events import broadcaster
+        import asyncio
 
         # 获取管理器实例
         manager = ProxyServiceManager.get_instance()
@@ -97,6 +112,17 @@ async def stop_proxy():
 
         # 停止代理服务
         manager.stop_service()
+
+        # 广播代理停止状态
+        status_data = {
+            "running": False,
+            "host": "",
+            "port": 0,
+            "system_proxy_enabled": False
+        }
+        main_loop = manager.get_main_event_loop()
+        if main_loop:
+            asyncio.run_coroutine_threadsafe(broadcaster.broadcast_status(status_data), main_loop)
 
         return {
             "status": "success",
@@ -291,6 +317,45 @@ async def get_cert_status():
     return status
 
 
+@router.get("/cert/info")
+async def get_cert_info():
+    """获取证书详细信息"""
+    from backend.proxy.cert_manager import CertManager
+
+    cert_manager = CertManager()
+    info = cert_manager.get_cert_info()
+
+    return info
+
+
+@router.get("/cert/expiry-check")
+async def check_cert_expiry():
+    """检查证书过期状态"""
+    from backend.proxy.cert_manager import CertManager
+
+    cert_manager = CertManager()
+    result = cert_manager.check_and_notify_expiry()
+
+    return result
+
+
+@router.post("/cert/regenerate")
+async def regenerate_cert():
+    """重新生成证书"""
+    from backend.proxy.cert_manager import CertManager
+
+    cert_manager = CertManager()
+    success = cert_manager.regenerate_cert()
+
+    if success:
+        return {
+            "status": "success",
+            "message": "证书已重新生成，请重启代理服务并重新安装证书"
+        }
+    else:
+        raise HTTPException(status_code=500, detail="重新生成证书失败")
+
+
 @router.get("/devices")
 async def get_devices():
     """获取连接的设备列表"""
@@ -334,6 +399,42 @@ async def get_mobile_setup():
     html_content = html_content.replace("{{SERVER_PORT}}", str(server.port))
 
     return HTMLResponse(content=html_content)
+
+
+@router.get("/firewall/status")
+async def get_firewall_status():
+    """获取防火墙状态"""
+    from backend.utils.firewall_checker import FirewallChecker
+
+    status = FirewallChecker.check_firewall_status()
+    return status
+
+
+@router.get("/firewall/check-port")
+async def check_firewall_port(port: int = 8888):
+    """检查指定端口的防火墙规则"""
+    from backend.utils.firewall_checker import FirewallChecker
+
+    result = FirewallChecker.check_port_rule(port)
+    return result
+
+
+@router.get("/firewall/recommendations")
+async def get_firewall_recommendations():
+    """获取防火墙配置建议"""
+    from backend.utils.firewall_checker import FirewallChecker
+    from backend.proxy.service_manager import ProxyServiceManager
+
+    manager = ProxyServiceManager.get_instance()
+    server = manager.get_server()
+    
+    port = server.port if server else 8888
+    recommendations = FirewallChecker.get_firewall_recommendations(port)
+    
+    return {
+        "port": port,
+        "recommendations": recommendations
+    }
 
 
 def _handle_request(request_data: dict):
@@ -478,3 +579,195 @@ async def get_proxy_request_detail(request_id: str):
         raise HTTPException(status_code=404, detail=f"请求不存在: {request_id}")
 
     return request
+
+
+@router.get("/requests/export")
+async def export_requests(
+    format: str = "har",
+    source: Optional[str] = None,
+    platform: Optional[str] = None,
+    limit: int = 1000
+):
+    """导出请求数据
+
+    Args:
+        format: 导出格式 (har/csv)，默认har
+        source: 请求来源过滤 (web_browser/desktop_app/mobile_ios/mobile_android)
+        platform: 平台过滤 (Windows/macOS/Linux/iOS/Android)
+        limit: 导出数量限制，默认1000
+
+    Returns:
+        导出的文件内容
+    """
+    from backend.proxy.service_manager import ProxyServiceManager
+    from backend.models.unified_request import RequestSource
+    from fastapi.responses import Response
+    import json
+    from datetime import datetime
+
+    if format not in ["har", "csv"]:
+        raise HTTPException(status_code=400, detail=f"不支持的导出格式: {format}")
+
+    manager = ProxyServiceManager.get_instance()
+    storage = manager.get_storage()
+
+    # 转换source参数
+    source_enum = None
+    if source:
+        try:
+            source_enum = RequestSource(source)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"无效的source参数: {source}")
+
+    # 获取请求列表
+    requests = storage.get_requests(
+        source=source_enum,
+        platform=platform,
+        limit=limit,
+        offset=0
+    )
+
+    if format == "har":
+        # 生成HAR格式
+        har_content = _convert_to_har(requests)
+        return Response(
+            content=json.dumps(har_content, indent=2, ensure_ascii=False),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="requests_{datetime.now().strftime("%Y%m%d_%H%M%S")}.har"'
+            }
+        )
+    else:  # csv
+        # 生成CSV格式
+        csv_content = _convert_to_csv(requests)
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="requests_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+            }
+        )
+
+
+def _convert_to_har(requests: list) -> dict:
+    """将请求列表转换为HAR格式
+
+    HAR (HTTP Archive) 是一个用于记录HTTP请求和响应的标准格式
+    """
+    from datetime import datetime
+
+    entries = []
+    for req in requests:
+        # 构建请求头数组
+        request_headers = [
+            {"name": k, "value": v}
+            for k, v in req.get("headers", {}).items()
+        ]
+
+        # 构建响应头数组
+        response_headers = [
+            {"name": k, "value": v}
+            for k, v in req.get("response_headers", {}).items()
+        ] if req.get("response_headers") else []
+
+        # 计算请求体大小
+        request_body_size = len(req.get("body", "")) if req.get("body") else 0
+
+        # 计算响应体大小
+        response_body_size = req.get("response_size", 0) or 0
+
+        # 构建HAR entry
+        entry = {
+            "startedDateTime": datetime.fromtimestamp(req.get("timestamp", 0)).isoformat() + "Z",
+            "time": (req.get("response_time", 0) or 0) * 1000,  # 转换为毫秒
+            "request": {
+                "method": req.get("method", "GET"),
+                "url": req.get("url", ""),
+                "httpVersion": "HTTP/1.1",
+                "headers": request_headers,
+                "queryString": [],
+                "cookies": [],
+                "headersSize": -1,
+                "bodySize": request_body_size,
+            },
+            "response": {
+                "status": req.get("status_code", 0) or 0,
+                "statusText": "",
+                "httpVersion": "HTTP/1.1",
+                "headers": response_headers,
+                "cookies": [],
+                "content": {
+                    "size": response_body_size,
+                    "mimeType": req.get("content_type", ""),
+                    "text": req.get("response_body", "") if req.get("response_body") else ""
+                },
+                "redirectURL": "",
+                "headersSize": -1,
+                "bodySize": response_body_size,
+            },
+            "cache": {},
+            "timings": {
+                "send": 0,
+                "wait": (req.get("response_time", 0) or 0) * 1000,
+                "receive": 0
+            }
+        }
+        entries.append(entry)
+
+    # 构建完整的HAR对象
+    har = {
+        "log": {
+            "version": "1.2",
+            "creator": {
+                "name": "Proxy Capture Tool",
+                "version": "2.0.0"
+            },
+            "entries": entries
+        }
+    }
+
+    return har
+
+
+def _convert_to_csv(requests: list) -> str:
+    """将请求列表转换为CSV格式"""
+    import csv
+    from io import StringIO
+    from datetime import datetime
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # 写入表头
+    writer.writerow([
+        "ID",
+        "Timestamp",
+        "Method",
+        "URL",
+        "Status Code",
+        "Response Time (s)",
+        "Response Size (bytes)",
+        "Source",
+        "Platform",
+        "Content Type"
+    ])
+
+    # 写入数据行
+    for req in requests:
+        timestamp = datetime.fromtimestamp(req.get("timestamp", 0)).strftime("%Y-%m-%d %H:%M:%S")
+        device_info = req.get("device_info", {})
+
+        writer.writerow([
+            req.get("id", ""),
+            timestamp,
+            req.get("method", ""),
+            req.get("url", ""),
+            req.get("status_code", ""),
+            req.get("response_time", ""),
+            req.get("response_size", ""),
+            req.get("source", ""),
+            device_info.get("platform", "") if device_info else "",
+            req.get("content_type", "")
+        ])
+
+    return output.getvalue()

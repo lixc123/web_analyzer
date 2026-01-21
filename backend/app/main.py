@@ -202,6 +202,47 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         manager.disconnect(client_id)
         logger.info(f"客户端 {client_id} 断开连接")
 
+@app.websocket("/ws/proxy-events")
+async def proxy_events_websocket(websocket: WebSocket):
+    """代理事件WebSocket端点 - 用于实时推送代理请求/响应/状态"""
+    from .websocket.proxy_events import broadcaster
+    
+    try:
+        await broadcaster.connect(websocket)
+        logger.info("代理事件WebSocket客户端已连接")
+        
+        # 发送初始连接确认消息
+        await websocket.send_json({
+            "type": "connected",
+            "data": {"message": "已连接到代理事件流"}
+        })
+        
+        # 保持连接，等待客户端断开或发送心跳
+        while True:
+            try:
+                # 接收客户端消息（主要用于心跳检测）
+                data = await websocket.receive_text()
+                import json
+                try:
+                    message_data = json.loads(data)
+                    if message_data.get("type") == "ping":
+                        await websocket.send_json({
+                            "type": "pong",
+                            "data": {"timestamp": message_data.get("timestamp")}
+                        })
+                except json.JSONDecodeError:
+                    pass
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"代理事件WebSocket处理消息时出错: {e}")
+                break
+    except Exception as e:
+        logger.error(f"代理事件WebSocket连接错误: {e}")
+    finally:
+        await broadcaster.disconnect(websocket)
+        logger.info("代理事件WebSocket客户端已断开")
+
 @app.get("/ws-test")
 async def websocket_test_page():
     """WebSocket测试页面"""

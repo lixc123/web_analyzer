@@ -50,6 +50,9 @@ def create_tables():
     """
     创建所有数据表
     """
+    # 导入所有模型以确保它们被注册
+    from backend.models.filter_rule import FilterRuleModel
+    
     Base.metadata.create_all(bind=engine)
 
 def init_database():

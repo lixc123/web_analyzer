@@ -1,12 +1,105 @@
-# Web Analyzer V2
+# Web Analyzer V2 - 网络流量分析平台
 
-Modern web application for network traffic analysis and AI-powered insights.
+现代化的网络流量分析平台，支持HTTP/HTTPS代理抓包、Native Hook、实时数据推送和AI智能分析。
 
-## 项目概述
+## 🎉 项目概述
 
-Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 + FastAPI + AI 智能分析技术栈构建。本项目将原有的 PySide6 桌面应用重构为 Web 应用，提供更好的用户体验和扩展性。
+Web Analyzer V2 是一个功能强大的网络流量分析平台，基于 React 19 + FastAPI + mitmproxy 技术栈构建。提供完整的代理抓包、数据分析、Native Hook和实时监控功能。
 
-## 重构完成状态
+### ✨ 核心特性
+
+- 🔍 **HTTP/HTTPS代理抓包** - 支持Web、移动端、桌面应用
+- 🔐 **自动证书管理** - CA证书自动生成、安装、过期检查
+- 🎯 **Native Hook** - 基于Frida的Windows应用Hook（绕过SSL固定）
+- 📊 **实时数据推送** - WebSocket实时推送请求/响应/状态
+- 💾 **数据导出** - 支持HAR和CSV格式导出
+- 🔧 **过滤规则** - 灵活的请求过滤系统（支持持久化）
+- 🛡️ **防火墙检查** - 自动检查Windows防火墙状态
+- 📱 **移动端支持** - iOS/Android证书安装向导
+- 🤖 **AI智能分析** - 集成Qwen-Code本地模型
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Python 3.9+
+- Node.js 18+
+- Windows 10/11（部分功能）
+
+### 一键启动
+
+```bash
+# 克隆项目
+git clone <repository-url>
+cd web_analyzer_v2
+
+# 启动所有服务（后端 + 前端 + AI）
+start_all.bat
+```
+
+服务地址：
+- 前端: http://localhost:5173
+- 后端API: http://localhost:8000
+- API文档: http://localhost:8000/docs
+
+## 📋 功能清单
+
+### ✅ 已完成功能（v2.0.0）
+
+#### 代理服务
+- ✅ HTTP/HTTPS代理服务器
+- ✅ 自动证书生成和管理
+- ✅ 系统代理自动配置（Windows）
+- ✅ 多设备连接支持
+- ✅ 实时流量捕获
+
+#### 实时推送
+- ✅ WebSocket实时连接 (`/ws/proxy-events`)
+- ✅ 请求/响应实时推送
+- ✅ 代理状态变化推送
+- ✅ 心跳检测和自动重连
+
+#### 数据管理
+- ✅ 请求列表展示和搜索
+- ✅ 请求详情查看
+- ✅ HAR格式导出（HTTP Archive 1.2）
+- ✅ CSV格式导出
+- ✅ 按来源/平台过滤
+
+#### 过滤规则
+- ✅ 包含/排除规则（白名单/黑名单）
+- ✅ 通配符和正则表达式支持
+- ✅ 规则启用/禁用
+- ✅ SQLite数据库持久化
+
+#### 证书管理
+- ✅ CA证书自动生成
+- ✅ Windows系统安装/卸载
+- ✅ 移动端证书下载
+- ✅ 证书过期检查和提醒
+- ✅ 证书重新生成
+- ✅ 二维码生成
+
+#### Native Hook（Windows）
+- ✅ Frida进程附加/分离
+- ✅ 脚本注入和模板管理
+- ✅ WinHTTP API Hook
+- ✅ SSL证书验证绕过
+- ✅ Hook记录展示
+- ✅ 脚本开发指南
+
+#### 系统监控
+- ✅ 防火墙状态检查（Windows）
+- ✅ 端口规则检查
+- ✅ 配置建议生成
+- ✅ 设备识别和统计
+
+#### AI智能分析
+- ✅ Qwen-Code本地模型集成
+- ✅ 代码生成和分析
+- ✅ 智能问答
+
+## 🔧 重构完成状态
 
 **项目重构已全面完成！** 所有核心功能已实现并可投入生产使用。
 
@@ -18,7 +111,7 @@ Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 
 - [x] 创建环境配置文件 (.env.example, .gitignore)
 - [x] 创建Windows批处理脚本 (一键启动/停止)
 - [x] 设置FastAPI后端架构 (main.py, config.py, database.py)
-- [x] 创建后端API路由 (crawler, analysis, qwen, embedding)
+- [x] 创建后端API路由 (crawler, analysis, qwen, embedding, proxy, filters, native_hook)
 - [x] 包装现有服务为FastAPI兼容服务层
 - [x] 创建依赖管理文件 (requirements.txt, package.json)
 - [x] 设置Qwen-Code HTTP包装器 (Express服务器 端口3001)
@@ -26,16 +119,24 @@ Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 
 #### 中等优先级任务 (已完成)
 - [x] 初始化React 19 + TypeScript项目 (Vite + Ant Design 6.1.1)
 - [x] 创建React布局组件和路由结构
-- [x] 实现核心前端组件 (爬虫管理和数据分析)
+- [x] 实现核心前端组件 (爬虫管理、数据分析、代理抓包、Native Hook)
 - [x] 集成Qwen-Code本地模型服务
 - [x] 设置SQLite数据库 (混合存储策略)
 - [x] 创建智能模型路由服务
 - [x] 创建API服务和Hooks (前端数据获取)
-- [x] 创建完整的React页面组件 (Home, Crawler, Analysis, AI, Settings)
+- [x] 创建完整的React页面组件 (Home, Crawler, Analysis, AI, Settings, ProxyCapture, NativeHook)
+- [x] WebSocket实时推送集成
+- [x] 数据导出功能（HAR/CSV）
+- [x] 过滤规则持久化
+- [x] 证书管理增强
+- [x] 防火墙状态检查
 
 #### 低优先级任务 (已完成)
 - [x] 创建综合项目文档和部署指南
 - [x] 更新README (最终架构和功能清单)
+- [x] Native Hook脚本开发指南
+- [x] API测试套件
+- [x] 集成测试套件
 
 ## 技术栈
 
@@ -44,8 +145,8 @@ Web Analyzer V2 是一个现代化的网络流量分析平台，基于 React 19 
 - **TypeScript** - 类型安全 
 - **Ant Design 6.1.1** - UI组件库 
 - **Vite** - 构建工具 
-- **React Query** - 数据获取和缓存 
-- **Zustand** - 状态管理 
+- **Axios** - HTTP客户端
+- **WebSocket** - 实时通信
 
 ### 后端  
 - **FastAPI 0.104+** - 现代Python web框架 

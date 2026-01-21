@@ -39,6 +39,14 @@ class ProxyEventBroadcaster:
         }
         await self._broadcast(message)
 
+    async def broadcast_status(self, status_data: dict):
+        """广播代理状态变化到所有客户端"""
+        message = {
+            "type": "proxy_status",
+            "data": status_data
+        }
+        await self._broadcast(message)
+
     async def _broadcast(self, message: dict):
         """内部广播方法"""
         import logging
