@@ -31,10 +31,14 @@ const DependencyGraph: React.FC = () => {
   const loadDependencyGraph = async () => {
     try {
       setLoading(true);
+      // TODO: 应该从 props 或 context 中获取 session_id 或 requests
+      // 当前发送空列表会导致依赖图为空
+      // 建议: 1) 添加 sessionId prop 并使用 { session_id: sessionId }
+      //      2) 或添加 requests prop 并使用 { requests: requests }
       const response = await fetch('/api/v1/analysis/dependency-graph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [] })
+        body: JSON.stringify({ requests: [] })  // 警告: 空列表会导致空图
       });
 
       if (response.ok) {

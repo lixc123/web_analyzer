@@ -79,7 +79,7 @@ const AnalysisHistory: React.FC = () => {
   const loadSessions = async () => {
     try {
       const response = await axios.get('/api/v1/crawler/sessions')
-      setSessions(response.data || [])
+      setSessions(response.data.sessions || [])
     } catch (error: any) {
       console.error('加载会话列表失败:', error)
       message.error('加载会话列表失败')

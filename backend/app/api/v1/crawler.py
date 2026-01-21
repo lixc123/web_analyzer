@@ -5,7 +5,7 @@ import os
 import tempfile
 import zipfile
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import asyncio
 import logging
@@ -121,12 +121,17 @@ async def stop_crawler(session_id: str, db: Session = Depends(get_db)):
     try:
         recorder_service = get_recorder_service()
         await recorder_service.stop_recording_background(session_id)
-        
+
         return {"session_id": session_id, "status": "stopping", "message": "停止请求已提交，正在收尾"}
-        
+
     except Exception as e:
         logger.error(f"停止爬虫失败: {e}")
         raise HTTPException(status_code=500, detail=f"停止爬虫失败: {str(e)}")
+
+@router.post("/stop-recording/{session_id}")
+async def stop_recording_alias(session_id: str, db: Session = Depends(get_db)):
+    """停止录制（别名路由，兼容前端）"""
+    return await stop_crawler(session_id, db)
 
 
 @router.post("/start-recording/{session_id}")
@@ -177,8 +182,8 @@ async def list_crawler_sessions(db: Session = Depends(get_db)):
 
 @router.get("/requests/{session_id}")
 async def get_session_requests(
-    session_id: str, 
-    offset: int = 0, 
+    session_id: str,
+    offset: int = 0,
     limit: int = 100,
     q: Optional[str] = None,
     resource_type: Optional[str] = None,
@@ -199,10 +204,24 @@ async def get_session_requests(
             status=status,
         )
         return page_data
-        
+
     except Exception as e:
         logger.error(f"获取会话请求失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取会话请求失败: {str(e)}")
+
+@router.get("/session/{session_id}/requests")
+async def get_session_requests_alias(
+    session_id: str,
+    offset: int = 0,
+    limit: int = 100,
+    q: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    method: Optional[str] = None,
+    status: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """获取会话的请求记录（别名路由，兼容前端）"""
+    return await get_session_requests(session_id, offset, limit, q, resource_type, method, status, db)
 
 
 @router.delete("/requests/{session_id}")
@@ -231,18 +250,23 @@ async def delete_crawler_session(session_id: str, db: Session = Depends(get_db))
 @router.post("/export/{session_id}")
 async def export_session_data(
     session_id: str,
-    format: str = "json",  # json, csv, har
+    body: Optional[Dict[str, Any]] = None,
+    format: str = "json",  # json, csv, har (query参数，兼容旧版)
     db: Session = Depends(get_db)
 ):
-    """导出会话数据"""
+    """导出会话数据（支持body和query两种方式传递format）"""
     try:
         recorder_service = get_recorder_service()
-        
+
+        # 优先从body中获取format，如果没有则使用query参数
+        if body and 'format' in body:
+            format = body['format']
+
         if format not in ["json", "csv", "har"]:
             raise HTTPException(status_code=400, detail="支持的格式: json, csv, har")
-        
+
         export_data = await recorder_service.export_session(session_id, format)
-        
+
         return {
             "session_id": session_id,
             "format": format,

@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 # 添加路径以便导入修复模块
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+project_root = os.path.join(backend_path, '..')
 sys.path.insert(0, backend_path)
+sys.path.insert(0, project_root)
 
 # Windows异步子进程修复 - 强制替换当前运行的事件循环
 if sys.platform == 'win32':
@@ -45,7 +47,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from .config import settings
 from .database import init_database, HybridStorage
-from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters, native_hook
+from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters, native_hook, commands, tasks, request_analysis
 from .websocket import manager
 
 # 更新日志级别（如果配置文件中有指定）
@@ -82,13 +84,18 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 app.include_router(migration.router, prefix="/api/v1/migration", tags=["migration"])
 app.include_router(terminal.router, prefix="/api/v1/terminal", tags=["terminal"])
 app.include_router(code_generator.router, prefix="/api/v1/code", tags=["code_generator"])
+app.include_router(code_generator.router, prefix="/api/v1/code-generator", tags=["code_generator_alias"])  # 别名路由，兼容前端
 app.include_router(proxy.router, prefix="/api/v1/proxy", tags=["proxy"])
 app.include_router(filters.router, prefix="/api/v1/filters", tags=["filters"])
 app.include_router(native_hook.router, tags=["native_hook"])
+app.include_router(commands.router, prefix="/api/v1/commands", tags=["commands"])
+app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["tasks"])
+app.include_router(request_analysis.router, prefix="/api/v1/request-analysis", tags=["request_analysis"])
 
 # 静态文件服务
-if os.path.exists("../frontend/dist"):
-    app.mount("/static", StaticFiles(directory="../frontend/dist"), name="static")
+frontend_dist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
+if os.path.exists(frontend_dist_path):
+    app.mount("/static", StaticFiles(directory=frontend_dist_path), name="static")
 
 @app.on_event("startup")
 async def startup_event():

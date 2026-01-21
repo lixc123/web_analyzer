@@ -37,6 +37,14 @@ class ReplayRequestModel(BaseModel):
     headers: Dict[str, str]
     payload: Optional[Any] = None
 
+class ReplayRequestByIdModel(BaseModel):
+    """前端使用的重放请求模型（通过request_id）"""
+    request_id: str
+    modify_headers: Optional[Dict[str, str]] = None
+    modify_body: Optional[Any] = None
+    follow_redirects: Optional[bool] = True
+    verify_ssl: Optional[bool] = True
+
 class CallStackFrame(BaseModel):
     id: str
     function: str
@@ -102,58 +110,90 @@ async def get_recorded_requests(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/replay-request")
-async def replay_request(request: ReplayRequestModel):
-    """重放HTTP请求"""
+async def replay_request(body: Dict[str, Any]):
+    """重放HTTP请求（支持两种格式）"""
     try:
+        # 检查是否是前端格式（包含request_id）
+        if 'request_id' in body:
+            request_id = body['request_id']
+
+            # 从记录中查找原始请求
+            original_request = None
+            with requests_lock:
+                for req in recorded_requests:
+                    if req.id == request_id:
+                        original_request = req
+                        break
+
+            if not original_request:
+                raise HTTPException(status_code=404, detail=f"请求ID {request_id} 不存在")
+
+            # 构建重放请求
+            headers = dict(original_request.headers)
+            if body.get('modify_headers'):
+                headers.update(body['modify_headers'])
+
+            payload = body.get('modify_body') if 'modify_body' in body else original_request.payload
+
+            # 转换为标准格式
+            method = original_request.method
+            url = original_request.url
+        else:
+            # 标准格式
+            method = body['method']
+            url = body['url']
+            headers = body['headers']
+            payload = body.get('payload')
+
         start_time = datetime.now()
-        
+
         # 使用aiohttp重放请求
         async with aiohttp.ClientSession() as session:
             kwargs = {
-                'method': request.method,
-                'url': request.url,
-                'headers': request.headers
+                'method': method,
+                'url': url,
+                'headers': headers
             }
-            
+
             # 添加请求体
-            if request.payload and request.method.upper() in ['POST', 'PUT', 'PATCH']:
-                if isinstance(request.payload, dict):
-                    kwargs['json'] = request.payload
+            if payload and method.upper() in ['POST', 'PUT', 'PATCH']:
+                if isinstance(payload, dict):
+                    kwargs['json'] = payload
                 else:
-                    kwargs['data'] = request.payload
-            
+                    kwargs['data'] = payload
+
             async with session.request(**kwargs) as response:
                 duration = (datetime.now() - start_time).total_seconds() * 1000
                 response_text = await response.text()
-                
+
                 # 创建重放记录
                 replay_record = HttpRequestRecord(
                     id=str(uuid.uuid4()),
-                    method=request.method,
-                    url=request.url,
+                    method=method,
+                    url=url,
                     status=response.status,
                     responseType=response.headers.get('content-type', 'text/plain'),
                     size=len(response_text.encode('utf-8')),
                     duration=int(duration),
                     timestamp=datetime.now(),
-                    headers=dict(request.headers),
-                    payload=request.payload,
+                    headers=dict(headers),
+                    payload=payload,
                     response=response_text[:1000] if response_text else None  # 限制响应大小
                 )
 
                 # 添加到请求记录（线程安全）
                 with requests_lock:
                     recorded_requests.insert(0, replay_record)
-                
+
                 return {
                     'success': True,
                     'replay_id': replay_record.id,
                     'status': response.status,
                     'duration': duration,
                     'size': replay_record.size,
-                    'message': f'请求重放成功: {request.method} {request.url}'
+                    'message': f'请求重放成功: {method} {url}'
                 }
-        
+
     except Exception as e:
         logger.error(f"请求重放失败: {str(e)}")
         return {

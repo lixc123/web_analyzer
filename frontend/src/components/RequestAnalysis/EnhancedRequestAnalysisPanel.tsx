@@ -147,9 +147,9 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
   const replayRequest = async (request: HttpRequest) => {
     try {
       message.loading('正在重放请求...', 0.5);
-      
+
       // 模拟重放请求逻辑
-      const response = await fetch('/api/v1/replay-request', {
+      const response = await fetch('/api/v1/request-analysis/replay-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -185,10 +185,11 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
     try {
       setCodeGenerating(true);
       message.loading('正在生成Python代码...', 0.5);
-      
-      // 模拟会话路径 - 实际项目中应该从会话管理获取
-      const sessionPath = 'C:\\Users\\Administrator\\Desktop\\WEB_p\\new\\web_analyzer_v2\\data\\sessions\\session_20241224_174600';
-      
+
+      // TODO: 从实际会话管理获取当前会话路径
+      // 这里使用占位符，实际应该从 props 或 context 中获取
+      const sessionPath = 'data/sessions/current_session';
+
       const response = await fetch('/api/v1/code/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,9 +220,10 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
   const downloadSessionCode = async () => {
     try {
       message.loading('正在下载代码文件...', 0.5);
-      
-      // 模拟会话名称 - 实际项目中应该从会话管理获取
-      const sessionName = 'session_20241224_174600';
+
+      // TODO: 从实际会话管理获取当前会话名称
+      // 这里使用占位符，实际应该从 props 或 context 中获取
+      const sessionName = 'current_session';
       
       const response = await fetch(`/api/v1/code/download/${sessionName}`);
       

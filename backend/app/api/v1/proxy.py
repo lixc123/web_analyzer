@@ -150,6 +150,7 @@ async def get_proxy_status():
             "port": 0,
             "system_proxy_enabled": False,
             "connected_clients": 0,
+            "clients_count": 0,  # 别名字段，兼容前端
             "total_requests": 0,
             "statistics": {
                 "devices_count": 0,
@@ -157,15 +158,17 @@ async def get_proxy_status():
             }
         }
 
+    clients_count = len(manager.get_devices())
     return {
         "running": manager.is_running(),
         "host": server.host,
         "port": server.port,
         "system_proxy_enabled": manager.is_system_proxy_enabled(),
-        "connected_clients": len(manager.get_devices()),
+        "connected_clients": clients_count,
+        "clients_count": clients_count,  # 别名字段，兼容前端
         "total_requests": stats.get('total_requests', 0),
         "statistics": {
-            "devices_count": len(manager.get_devices()),
+            "devices_count": clients_count,
             "total_requests": stats.get('total_requests', 0)
         }
     }

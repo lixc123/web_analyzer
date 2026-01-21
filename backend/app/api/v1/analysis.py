@@ -6,9 +6,9 @@ import logging
 
 from ...database import get_db
 from ...services.analysis_service import AnalysisService
-from ....utils.js_beautifier import beautify_js
-from ....utils.dependency_analyzer import DependencyAnalyzer
-from ....utils.replay_validator import ReplayValidator
+from backend.utils.js_beautifier import beautify_js
+from backend.utils.dependency_analyzer import DependencyAnalyzer
+from backend.utils.replay_validator import ReplayValidator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -153,22 +153,27 @@ async def get_analysis_summary(
 
 @router.post("/custom-rules")
 async def create_custom_analysis_rule(
-    rule_name: str,
-    rule_config: Dict[str, Any],
+    body: Dict[str, Any],
     db: Session = Depends(get_db)
 ):
-    """创建自定义分析规则"""
+    """创建自定义分析规则（支持body传参）"""
     try:
+        rule_name = body.get('rule_name')
+        rule_config = body.get('rule_config')
+
+        if not rule_name or not rule_config:
+            raise HTTPException(status_code=400, detail="缺少必需参数: rule_name 或 rule_config")
+
         analysis_service = AnalysisService()
         rule_id = await analysis_service.create_custom_rule(rule_name, rule_config)
-        
+
         return {
             "rule_id": rule_id,
             "rule_name": rule_name,
             "status": "created",
             "message": "自定义规则创建成功"
         }
-        
+
     except Exception as e:
         logger.error(f"创建自定义规则失败: {e}")
         raise HTTPException(status_code=500, detail=f"创建自定义规则失败: {str(e)}")
@@ -189,12 +194,17 @@ async def list_analysis_rules(db: Session = Depends(get_db)):
 @router.put("/rules/{rule_id}")
 async def update_analysis_rule(
     rule_id: str,
-    rule_name: str,
-    rule_config: Dict[str, Any],
+    body: Dict[str, Any],
     db: Session = Depends(get_db)
 ):
-    """更新分析规则"""
+    """更新分析规则（支持body传参）"""
     try:
+        rule_name = body.get('rule_name')
+        rule_config = body.get('rule_config')
+
+        if not rule_name or not rule_config:
+            raise HTTPException(status_code=400, detail="缺少必需参数: rule_name 或 rule_config")
+
         analysis_service = AnalysisService()
         await analysis_service.update_rule(rule_id, rule_name, rule_config)
 
@@ -276,18 +286,23 @@ async def compare_analysis_results(
 @router.post("/export/{analysis_id}")
 async def export_analysis_result(
     analysis_id: str,
-    format: str = "json",  # json, csv, pdf
+    body: Optional[Dict[str, Any]] = None,
+    format: str = "json",  # json, csv, pdf (query参数，兼容旧版)
     db: Session = Depends(get_db)
 ):
-    """导出分析结果"""
+    """导出分析结果（支持body和query两种方式传递format）"""
     try:
         analysis_service = AnalysisService()
-        
+
+        # 优先从body中获取format，如果没有则使用query参数
+        if body and 'format' in body:
+            format = body['format']
+
         if format not in ["json", "csv", "pdf"]:
             raise HTTPException(status_code=400, detail="支持的格式: json, csv, pdf")
-        
+
         export_data = await analysis_service.export_analysis(analysis_id, format)
-        
+
         return {
             "analysis_id": analysis_id,
             "format": format,
@@ -313,37 +328,66 @@ async def beautify_javascript(request: BeautifyRequest):
         raise HTTPException(status_code=500, detail=f"代码美化失败: {str(e)}")
 
 class DependencyRequest(BaseModel):
-    requests: List[Dict[str, Any]]
+    requests: Optional[List[Dict[str, Any]]] = None
+    session_id: Optional[str] = None
+    request_id: Optional[str] = None
+
+async def get_requests_from_body(body: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """从请求体中获取请求列表（支持多种格式）"""
+    # 如果直接提供了requests
+    if 'requests' in body and body['requests']:
+        return body['requests']
+
+    # 如果提供了session_id，从会话中获取请求
+    if 'session_id' in body:
+        from ..services.recorder_service import get_recorder_service
+        recorder_service = get_recorder_service()
+        page_data = await recorder_service.get_session_requests_page(
+            body['session_id'],
+            offset=0,
+            limit=1000  # 获取足够多的请求
+        )
+        return page_data.get('requests', [])
+
+    # 如果提供了request_id，返回单个请求
+    if 'request_id' in body:
+        # 这里需要实现从request_id获取请求的逻辑
+        raise HTTPException(status_code=400, detail="暂不支持通过request_id获取请求")
+
+    raise HTTPException(status_code=400, detail="必须提供requests、session_id或request_id")
 
 @router.post("/dependency-graph")
-async def analyze_dependency_graph(request: DependencyRequest):
+async def analyze_dependency_graph(body: Dict[str, Any]):
     """分析请求依赖关系图"""
     try:
+        requests = await get_requests_from_body(body)
         analyzer = DependencyAnalyzer()
-        result = analyzer.analyze_dependencies(request.requests)
+        result = analyzer.analyze_dependencies(requests)
         return result
     except Exception as e:
         logger.error(f"依赖关系分析失败: {e}")
         raise HTTPException(status_code=500, detail=f"依赖关系分析失败: {str(e)}")
 
 @router.post("/replay-validate")
-async def replay_and_validate(request: DependencyRequest):
+async def replay_and_validate(body: Dict[str, Any]):
     """重放请求并验证"""
     try:
+        requests = await get_requests_from_body(body)
         validator = ReplayValidator()
-        result = await validator.replay_requests(request.requests)
+        result = await validator.replay_requests(requests)
         return result
     except Exception as e:
         logger.error(f"重放验证失败: {e}")
         raise HTTPException(status_code=500, detail=f"重放验证失败: {str(e)}")
 
 @router.post("/signature-analysis")
-async def analyze_signature(request: DependencyRequest):
+async def analyze_signature(body: Dict[str, Any]):
     """分析请求签名"""
     try:
+        requests = await get_requests_from_body(body)
         from backend.utils.signature_analyzer import SignatureAnalyzer
         analyzer = SignatureAnalyzer()
-        result = analyzer.analyze_requests(request.requests)
+        result = analyzer.analyze_requests(requests)
         return result
     except Exception as e:
         logger.error(f"签名分析失败: {e}")

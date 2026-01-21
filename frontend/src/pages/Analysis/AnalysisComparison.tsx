@@ -83,7 +83,12 @@ const AnalysisComparison: React.FC = () => {
     setLoading(true)
     try {
       const response = await axios.get(`/api/v1/analysis/history/${sessionId}`)
-      setAnalysisHistory(response.data.history || [])
+      // 映射 analysis_id 到 id 字段
+      const history = (response.data.history || []).map((item: any) => ({
+        ...item,
+        id: item.analysis_id || item.id
+      }))
+      setAnalysisHistory(history)
     } catch (error) {
       console.error('加载分析历史失败:', error)
     } finally {

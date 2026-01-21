@@ -106,7 +106,7 @@ const Terminal: React.FC = () => {
       setLoading(false);
       setTerminalReady(false);
       setStatus('连接失败');
-      setError('无法连接到终端服务，请确保Node.js终端服务在端口3000运行');
+      setError('无法连接到终端服务，请确保Node.js终端服务在端口3001运行');
     };
 
     // 设置超时检查

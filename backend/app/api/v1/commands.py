@@ -280,18 +280,32 @@ async def compress_session(
 
         # 压缩会话历史
         result = await session_service.compress_session_history(session_id)
-        
+
         return {
             "success": True,
             "message": "会话历史已压缩",
             "before_tokens": result.get("before_tokens", 0),
             "after_tokens": result.get("after_tokens", 0),
             "compression_ratio": result.get("compression_ratio", 0),
-            "summary": result.get("summary", "")
+            "summary": result.get("summary", ""),
+            "estimatedSavings": result.get("before_tokens", 0) - result.get("after_tokens", 0),
+            "compressionRatio": result.get("compression_ratio", 0)
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"压缩会话失败: {str(e)}")
+
+@router.post("/session/compress")
+async def compress_session_by_body(
+    body: Dict[str, Any],
+    session_service: SessionService = Depends(get_session_service),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """压缩会话历史 - 别名路由（兼容前端，session_id在body中）"""
+    session_id = body.get('session_id')
+    if not session_id:
+        raise HTTPException(status_code=400, detail="缺少session_id参数")
+    return await compress_session(session_id, session_service, auth_service)
 
 @router.get("/help")
 async def get_help(command: Optional[str] = None):

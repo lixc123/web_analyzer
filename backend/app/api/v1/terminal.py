@@ -3,9 +3,11 @@ from fastapi.responses import HTMLResponse
 from typing import List, Dict, Any
 import os
 import json
+import logging
 from pathlib import Path
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.get("/sessions")
 async def get_crawler_sessions() -> List[Dict[str, Any]]:
