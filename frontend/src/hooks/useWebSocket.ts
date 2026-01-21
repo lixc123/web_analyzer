@@ -37,14 +37,32 @@ export const useWebSocket = (clientId = 'default-client') => {
     }
 
     try {
-      // 动态获取WebSocket URL - 支持本地和局域网访问
+      // 动态获取WebSocket URL - 支持环境变量配置和自动检测
       const getWebSocketURL = () => {
+        // 优先使用环境变量配置
+        const envBaseURL = import.meta.env.VITE_WS_BASE_URL;
+        if (envBaseURL) {
+          return `${envBaseURL}/ws/${clientId}`;
+        }
+
+        // 如果没有配置环境变量，使用动态检测
         const hostname = window.location.hostname;
-        const port = hostname === 'localhost' || hostname === '127.0.0.1' ? '8000' : '8000';
-        const host = hostname === 'localhost' || hostname === '127.0.0.1' ? 'localhost' : hostname;
-        return `ws://${host}:${port}/ws/${clientId}`;
+        const protocol = window.location.protocol;
+
+        // 如果是localhost或127.0.0.1，直接使用localhost
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `ws://localhost:8000/ws/${clientId}`;
+        }
+
+        // 生产环境：使用wss协议（假设前后端同域）
+        if (protocol === 'https:') {
+          return `wss://${hostname}/ws/${clientId}`;
+        }
+
+        // 局域网IP，假设后端在同一台机器的8000端口
+        return `ws://${hostname.replace(/:\d+$/, '')}:8000/ws/${clientId}`;
       };
-      
+
       const wsUrl = getWebSocketURL()
       // 连接WebSocket
       const ws = new WebSocket(wsUrl)

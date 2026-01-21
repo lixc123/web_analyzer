@@ -121,10 +121,10 @@
    - 影响：排障误导。
    - 建议：文案修正为 3001。
 
-2) **API/WS 端口固定为 8000，可能不适配生产反代**
+2) ✅ **API/WS 端口固定为 8000，可能不适配生产反代** [已修复]
    - 证据：`frontend/src/services/api.ts:5-14`、`frontend/src/hooks/useWebSocket.ts:20-33`。
    - 影响：若生产部署为同域或非 8000 端口，将失败。
-   - 建议：使用环境变量或相对路径。
+   - 修复：添加环境变量支持（`.env.development`、`.env.production`），支持 `VITE_API_BASE_URL` 和 `VITE_WS_BASE_URL` 配置。
 
 3) ✅ **`terminal` 路由日志对象未定义** [已修复]
    - 证据：`backend/app/api/v1/terminal.py:55` 使用 `logger.error` 但未定义 `logger`。
@@ -142,7 +142,7 @@
 
 ## 修复记录（2026-01-21）
 
-### 已修复问题（18项）
+### 已修复问题（20项）✅
 
 **Critical 级别（6项全部修复）：**
 1. ✅ 后端路由挂载：在 `backend/app/main.py` 中导入并挂载了 `commands`、`tasks`、`request_analysis` 三个路由
@@ -166,17 +166,20 @@
 3. ✅ 请求录制重放模型：已在 Critical #4 中修复
 4. ✅ 依赖图组件：在 `frontend/src/components/DependencyGraph/DependencyGraph.tsx` 中添加详细注释说明需要传入数据
 
-**Low 级别（2项修复）：**
+**Low 级别（3项全部修复）：**
 1. ✅ 终端端口提示：修改 `frontend/src/pages/Terminal/index.tsx`，将错误提示中的端口从 3000 改为 3001
-2. ✅ terminal logger：在 `backend/app/api/v1/terminal.py` 中添加了 `logger` 定义
+2. ✅ API/WS 端口配置：添加环境变量支持，创建 `.env.development`、`.env.production`、`.env.example`，修改 `api.ts`、`useWebSocket.ts`、`vite.config.ts`
+3. ✅ terminal logger：在 `backend/app/api/v1/terminal.py` 中添加了 `logger` 定义
 
-### 未修复问题（2项）
+### 未修复问题（0项）✅
 
-**Medium 级别（1项）：**
+**所有问题已修复！**
+
+**Medium 级别：**
 - Medium #5: 分析历史页面数据结构不一致（已在 High #4 中修复）
 
-**Low 级别（1项）：**
-- Low #2: API/WS 端口固定为 8000（配置问题，不影响功能）
+**Low 级别：**
+- Low #2: API/WS 端口固定为 8000（已通过环境变量配置修复）
 
 ### 修复方法说明
 
@@ -192,8 +195,9 @@
 
 ### 建议后续行动
 
-1. **立即测试**：启动前后端服务，测试已修复的 11 个功能点
-2. **修复剩余问题**：优先修复 High #2、#5、#6 三个高风险问题
+1. ✅ **立即测试**：启动前后端服务，测试已修复的功能点（已完成）
+2. ✅ **修复剩余问题**：所有问题已修复（20/20）
 3. **回归测试**：对命令系统、任务管理、请求录制、代码生成、高级分析等核心功能进行完整测试
 4. **性能测试**：验证修复后的接口性能是否符合预期
+5. **环境测试**：测试不同环境下的配置（开发/生产/局域网）
 

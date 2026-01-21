@@ -1,15 +1,29 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios'
 import { handleError, retryWithBackoff } from '@/utils/errorHandler'
 
-// 动态获取API baseURL - 支持本地和局域网访问
+// 动态获取API baseURL - 支持环境变量配置和自动检测
 const getApiBaseURL = () => {
+  // 优先使用环境变量配置
+  const envBaseURL = import.meta.env.VITE_API_BASE_URL;
+  if (envBaseURL) {
+    return `${envBaseURL}/api/v1`;
+  }
+
+  // 如果没有配置环境变量，使用动态检测
   const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+
   // 如果是localhost或127.0.0.1，直接使用localhost
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:8000/api/v1';
   }
-  // 如果是局域网IP，假设后端在同一台机器的8000端口
-  // 用户可能需要根据实际部署情况调整这个逻辑
+
+  // 生产环境：使用相对路径（假设前后端同域）
+  if (protocol === 'https:') {
+    return `https://${hostname}/api/v1`;
+  }
+
+  // 局域网IP，假设后端在同一台机器的8000端口
   return `http://${hostname.replace(/:\d+$/, '')}:8000/api/v1`;
 };
 

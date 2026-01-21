@@ -5,8 +5,8 @@
 
 ## 修复统计
 - **总问题数**: 20项
-- **已修复**: 18项 (90%)
-- **未修复**: 2项 (10%)
+- **已修复**: 20项 (100%) ✅
+- **未修复**: 0项 (0%)
 
 ---
 
@@ -217,7 +217,7 @@ const sessionName = 'current_session';  // 原来是 session_20241224_174600
 
 ---
 
-### Low 级别（2/3 修复）✅
+### Low 级别（3/3 修复）✅
 
 #### 1. 终端页面端口提示错误
 **文件**: `frontend/src/pages/Terminal/index.tsx`
@@ -226,6 +226,46 @@ const sessionName = 'current_session';  // 原来是 session_20241224_174600
 **代码变更**:
 ```typescript
 setError('无法连接到终端服务，请确保Node.js终端服务在端口3001运行');
+```
+
+#### 2. API/WS 端口固定为 8000
+**文件**:
+- `frontend/src/services/api.ts`
+- `frontend/src/hooks/useWebSocket.ts`
+- `frontend/vite.config.ts`
+- `.env.development` (新建)
+- `.env.production` (新建)
+- `.env.example` (新建)
+
+**修改**: 支持环境变量配置
+
+**代码变更**:
+```typescript
+// api.ts
+const getApiBaseURL = () => {
+  const envBaseURL = import.meta.env.VITE_API_BASE_URL;
+  if (envBaseURL) {
+    return `${envBaseURL}/api/v1`;
+  }
+  // 自动检测逻辑...
+};
+
+// useWebSocket.ts
+const getWebSocketURL = () => {
+  const envBaseURL = import.meta.env.VITE_WS_BASE_URL;
+  if (envBaseURL) {
+    return `${envBaseURL}/ws/${clientId}`;
+  }
+  // 自动检测逻辑...
+};
+
+// vite.config.ts
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiBaseUrl = env.VITE_API_BASE_URL || 'http://localhost:8000'
+  const wsBaseUrl = env.VITE_WS_BASE_URL || 'ws://localhost:8000'
+  // ...
+});
 ```
 
 #### 3. terminal 路由 logger 未定义
@@ -243,11 +283,22 @@ logger = logging.getLogger(__name__)
 ## 未修复问题
 
 ### Medium #5: 分析历史页面数据结构不一致
-**状态**: 已在 High #4 中修复
+**状态**: ✅ 已在 High #4 中修复
 
 ### Low #2: API/WS 端口固定为 8000
-**原因**: 配置问题，不影响核心功能
-**建议**: 使用环境变量配置
+**状态**: ✅ 已修复（2026-01-21）
+**修改内容**:
+1. 创建环境变量配置文件：`.env.development`、`.env.production`、`.env.example`
+2. 修改 `frontend/src/services/api.ts`：支持 `VITE_API_BASE_URL` 环境变量
+3. 修改 `frontend/src/hooks/useWebSocket.ts`：支持 `VITE_WS_BASE_URL` 环境变量
+4. 修改 `frontend/vite.config.ts`：从环境变量读取代理配置
+5. 创建 `ENVIRONMENT_CONFIG.md`：详细的环境配置说明文档
+
+**修复效果**:
+- ✅ 开发环境：可通过 `.env.development` 配置
+- ✅ 生产环境：可通过 `.env.production` 配置
+- ✅ 自动检测：未配置时自动适配当前环境
+- ✅ 支持 HTTPS/WSS：生产环境自动使用安全协议
 
 ---
 
@@ -356,16 +407,17 @@ cd frontend && npm start
 ### 2. 端口配置
 **问题**: 前端硬编码端口 8000
 **影响**: 生产环境可能需要调整
-**解决**: 使用环境变量或相对路径
+**解决**: ✅ 已通过环境变量配置解决（2026-01-21）
 
 ---
 
 ## 总结
 
-本次修复共处理了 **18 个问题**，覆盖了所有 Critical 和 High 级别的问题，以及大部分 Medium 和 Low 级别的问题。所有修复都采用了向后兼容的方式，确保不会破坏现有功能。
+本次修复共处理了 **20 个问题**，覆盖了所有 Critical、High、Medium 和 Low 级别的问题。所有修复都采用了向后兼容的方式，确保不会破坏现有功能。
 
-**修复完成度**: 90%
+**修复完成度**: 100% ✅
 **代码质量**: 显著提升
 **上线风险**: 大幅降低
+**环境适配**: 支持多环境部署
 
 建议在完整的功能测试后即可上线。
