@@ -5,6 +5,8 @@ import os
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
+from ...config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -83,13 +85,16 @@ async def get_crawler_sessions() -> List[Dict[str, Any]]:
 @router.get("/page")
 async def terminal_page() -> HTMLResponse:
     """返回终端页面"""
+    terminal_service_url = settings.terminal_service_url.rstrip("/")
+    terminal_service_display = urlparse(terminal_service_url).netloc or terminal_service_url
+
     html_content = """
     <!DOCTYPE html>
     <html lang="zh">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Qwen Code 终端</title>
+        <title>AI 终端</title>
         <style>
             body {
                 margin: 0;
@@ -208,19 +213,19 @@ async def terminal_page() -> HTMLResponse:
             <div id="loading" class="loading">
                 <div>正在连接终端服务...</div>
                 <div style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
-                    Node.js 终端服务: localhost:3001
+                    Node.js 终端服务: __TERMINAL_SERVICE_DISPLAY__
                 </div>
             </div>
             
             <div id="error" class="error">
                 <div>无法连接到终端服务</div>
                 <div style="margin: 10px 0; font-size: 14px;">
-                    请确保 Node.js 终端服务正在端口 3001 运行
+                    请确保 Node.js 终端服务正在 __TERMINAL_SERVICE_DISPLAY__ 运行
                 </div>
                 <button onclick="retryConnection()" style="background: #4a9eff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">重试连接</button>
             </div>
             
-            <iframe id="terminal-frame" class="terminal-frame" src="http://localhost:3001" style="display: none;"></iframe>
+            <iframe id="terminal-frame" class="terminal-frame" src="__TERMINAL_SERVICE_URL__" style="display: none;"></iframe>
         </div>
 
         <script>
@@ -363,6 +368,11 @@ async def terminal_page() -> HTMLResponse:
     </body>
     </html>
     """
+    html_content = (
+        html_content
+        .replace("__TERMINAL_SERVICE_DISPLAY__", terminal_service_display)
+        .replace("__TERMINAL_SERVICE_URL__", terminal_service_url)
+    )
     
     return HTMLResponse(content=html_content)
 

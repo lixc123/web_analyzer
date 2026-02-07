@@ -1,5 +1,5 @@
 """
-认证API路由 - Web版本qwen-code认证功能
+认证API路由 - Web版AI认证功能
 支持Qwen OAuth和OpenAI API两种认证方式
 """
 

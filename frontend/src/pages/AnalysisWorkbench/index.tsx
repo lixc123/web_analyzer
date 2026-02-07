@@ -1,8 +1,9 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { Layout, Divider, message, Button, Space, Badge, Popconfirm, Alert, Tooltip, Select } from 'antd';
 import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, RobotOutlined, FullscreenOutlined } from '@ant-design/icons';
 import SessionSelector from './components/SessionSelector';
 import RequestList from './components/RequestList';
+import { getTerminalServiceLabel, getTerminalServiceUrl } from '@/utils/terminalService';
 import './index.css';
 
 const { Content, Sider } = Layout;
@@ -43,6 +44,11 @@ const AnalysisWorkbench: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedAIModel, setSelectedAIModel] = useState<string>('qwen');
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const terminalServiceUrl = useMemo(() => getTerminalServiceUrl(), []);
+  const terminalServiceLabel = useMemo(
+    () => getTerminalServiceLabel(terminalServiceUrl),
+    [terminalServiceUrl]
+  );
 
   // 支持的AI模型
   const aiModels = [
@@ -353,7 +359,7 @@ const AnalysisWorkbench: React.FC = () => {
               {!terminalReady && (
                 <Alert
                   message="正在连接终端服务..."
-                  description="请确保终端服务运行在 localhost:3001"
+                  description={`请确保终端服务运行在 ${terminalServiceLabel}`}
                   type="info"
                   showIcon
                   style={{ margin: 16 }}
@@ -362,7 +368,7 @@ const AnalysisWorkbench: React.FC = () => {
 
               <iframe
                 ref={iframeRef}
-                src="http://localhost:3001"
+                src={terminalServiceUrl}
                 style={{
                   width: '100%',
                   height: isFullscreen ? 'calc(100vh - 60px)' : 'calc(100% - 60px)',
@@ -390,7 +396,7 @@ const AnalysisWorkbench: React.FC = () => {
                   <Space split="|">
                     <span>当前会话: <strong>{selectedSession.session_name}</strong></span>
                     <span>会话路径: <code>data/sessions/{selectedSession.session_id}</code></span>
-                    <span>提示: 点击"启动Qwen"按钮自动切换到当前会话</span>
+                    <span>提示: 点击“启动 AI”按钮自动切换到当前会话</span>
                   </Space>
                 </div>
               )}

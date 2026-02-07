@@ -4,7 +4,7 @@
 
 ### 软件依赖
 - **Python 3.9+** - 后端FastAPI服务
-- **Node.js 18.0+** - 前端React和Qwen-Code包装器
+- **Node.js 18.0+** - 前端React和AI终端服务
 - **npm 8.0+** - 包管理器
 - **Git** - 版本控制
 
@@ -26,15 +26,15 @@ cp .env.example .env
 
 编辑 `.env` 文件，配置必需的API密钥：
 ```env
-# API配置 - 本地Qwen-Code模型无需配置
+# API配置 - 本地AI终端服务无需配置
 # OPENAI_API_KEY=sk-your-api-key-here (本地模型不需要)
-# OPENAI_BASE_URL=http://localhost:3001 (本地Qwen服务)
-# OPENAI_MODEL=qwen-code (本地模型)
+# OPENAI_BASE_URL=http://localhost:3001 (本地AI终端服务)
+# OPENAI_MODEL=qwen (可选，仅用于外部API模式)
 
 # 服务端口配置
 BACKEND_PORT=8000
 FRONTEND_PORT=3000
-QWEN_CODE_PORT=3001
+TERMINAL_SERVICE_PORT=3001
 
 # 数据库配置
 DATABASE_URL=sqlite:///./data/web_analyzer.db
@@ -63,7 +63,7 @@ cd scripts
 - 检查Python和Node.js环境
 - 安装所有依赖包
 - 设置环境变量
-- 启动所有服务 (后端、前端、Qwen-Code)
+- 启动所有服务 (后端、前端、AI终端服务)
 
 ### 3. 手动部署
 
@@ -99,9 +99,9 @@ npm run build
 npm run preview
 ```
 
-#### 3.3 Qwen-Code包装器
+#### 3.3 AI终端服务
 ```bash
-cd qwen-code
+cd backend/terminal_service
 
 # 安装依赖
 npm install
@@ -114,7 +114,7 @@ npm start
 
 ### 健康检查端点
 - **后端**: http://localhost:8000/health
-- **Qwen-Code**: http://localhost:3001/health
+- **AI终端服务**: http://localhost:3001/health
 - **前端**: http://localhost:3000
 
 ### 系统访问
@@ -149,8 +149,8 @@ services:
     depends_on:
       - backend
 
-  qwen-code:
-    build: ./qwen-code
+  terminal-service:
+    build: ./backend/terminal_service
     ports:
       - "3001:3001"
     environment:
@@ -195,8 +195,8 @@ module.exports = {
       }
     },
     {
-      name: 'qwen-code-wrapper',
-      cwd: './qwen-code',
+      name: 'terminal-service',
+      cwd: './backend/terminal_service',
       script: 'server-wrapper.js',
       env: {
         NODE_ENV: 'production'
@@ -249,8 +249,8 @@ server {
         proxy_set_header Host $host;
     }
 
-    # Qwen-Code API
-    location /qwen/ {
+    # AI终端服务 API
+    location /terminal/ {
         proxy_pass http://localhost:3001/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -262,9 +262,9 @@ server {
 
 ### 常见问题
 
-#### 1. Qwen-Code服务无法访问
-**症状**: Qwen-Code模型调用失败
-**解决**: 检查Qwen-Code服务是否在端口3001正常运行
+#### 1. AI终端服务无法访问
+**症状**: 终端页面无法连接或模型命令无法启动
+**解决**: 检查AI终端服务是否在端口3001正常运行
 
 #### 2. 端口被占用
 **症状**: 服务启动失败，提示端口被占用
@@ -276,8 +276,8 @@ netstat -ano | findstr :8000
 taskkill /PID <进程ID> /F
 ```
 
-#### 3. Qwen-Code CLI未找到
-**症状**: Qwen-Code包装器健康检查失败
+#### 3. AI CLI未找到
+**症状**: AI终端服务健康检查失败
 **解决**: 确保 `Roo-Code` 目录存在且包含CLI文件
 
 #### 4. 前端构建失败
@@ -319,10 +319,10 @@ grep "ERROR" logs/backend.log
 tail -f /var/log/nginx/access.log
 ```
 
-#### Qwen-Code包装器日志
+#### AI终端服务日志
 ```bash
 # 查看包装器日志
-tail -f logs/qwen-code.log
+tail -f logs/terminal-service.log
 ```
 
 ## 性能优化
@@ -365,7 +365,7 @@ tail -f logs/qwen-code.log
 ## 维护指南
 
 ### 1. 定期维护任务
-- 清理临时文件: `rm -rf qwen-code/temp/*`
+- 清理临时文件: `rm -rf backend/terminal_service/temp/*`
 - 清理日志文件: `find logs/ -name "*.log" -mtime +30 -delete`
 - 更新依赖包: `pip install --upgrade -r requirements.txt`
 
@@ -389,7 +389,7 @@ git pull origin main
 # 更新依赖
 pip install -r backend/requirements.txt
 npm install --prefix frontend
-npm install --prefix qwen-code
+npm install --prefix backend/terminal_service
 
 # 重启服务
 ./scripts/setup_and_start.bat

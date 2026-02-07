@@ -16,7 +16,7 @@ Web Analyzer V2 是一个功能强大的网络流量分析平台，基于 React 
 - 🔧 **过滤规则** - 灵活的请求过滤系统（支持持久化）
 - 🛡️ **防火墙检查** - 自动检查Windows防火墙状态
 - 📱 **移动端支持** - iOS/Android证书安装向导
-- 🤖 **AI智能分析** - 集成Qwen-Code本地模型
+- 🤖 **AI智能分析** - 集成AI终端服务（CLI桥接）
 
 ## 🚀 快速开始
 
@@ -95,7 +95,7 @@ start_all.bat
 - ✅ 设备识别和统计
 
 #### AI智能分析
-- ✅ Qwen-Code本地模型集成
+- ✅ AI终端服务集成
 - ✅ 代码生成和分析
 - ✅ 智能问答
 
@@ -106,7 +106,7 @@ start_all.bat
 ### 完成清单
 
 #### 高优先级任务 (已完成)
-- [x] 创建项目目录结构 (backend, frontend, qwen-code, scripts)
+- [x] 创建项目目录结构 (backend, frontend, scripts)
 - [x] 复制现有业务逻辑模块到后端 (零修改复用)
 - [x] 创建环境配置文件 (.env.example, .gitignore)
 - [x] 创建Windows批处理脚本 (一键启动/停止)
@@ -114,13 +114,13 @@ start_all.bat
 - [x] 创建后端API路由 (crawler, analysis, qwen, embedding, proxy, filters, native_hook)
 - [x] 包装现有服务为FastAPI兼容服务层
 - [x] 创建依赖管理文件 (requirements.txt, package.json)
-- [x] 设置Qwen-Code HTTP包装器 (Express服务器 端口3001)
+- [x] 设置AI终端HTTP包装器 (Express服务器 端口3001)
 
 #### 中等优先级任务 (已完成)
 - [x] 初始化React 19 + TypeScript项目 (Vite + Ant Design 6.1.1)
 - [x] 创建React布局组件和路由结构
 - [x] 实现核心前端组件 (爬虫管理、数据分析、代理抓包、Native Hook)
-- [x] 集成Qwen-Code本地模型服务
+- [x] 集成AI终端服务
 - [x] 设置SQLite数据库 (混合存储策略)
 - [x] 创建智能模型路由服务
 - [x] 创建API服务和Hooks (前端数据获取)
@@ -156,7 +156,7 @@ start_all.bat
 - **Alembic** - 数据库迁移 
 
 ### AI集成
-- **Qwen-Code** - 本地JavaScript代码分析和对话模型
+- **AI终端服务** - 本地CLI桥接和交互终端
 - **智能模型路由** - 统一模型调用接口 
 
 ## Quick Start
@@ -179,7 +179,7 @@ web_analyzer_v2/
 │   ├── utils/         # 工具函数 (复用)
 │   └── app/           # FastAPI应用层
 ├── frontend/          # React前端
-├── qwen-code/         # Qwen-Code智能体
+├── backend/terminal_service/ # Node.js 终端服务
 └── scripts/           # Windows启动脚本
 ```
 

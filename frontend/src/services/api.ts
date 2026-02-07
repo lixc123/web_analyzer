@@ -213,7 +213,7 @@ export interface AnalysisResult {
 export const systemApi = {
   // 获取系统健康状态
   getHealth: async (): Promise<any> => {
-    const response = await apiClient.get('/health')
+    const response = await apiClient.get('/dashboard/health')
     return response.data
   },
 

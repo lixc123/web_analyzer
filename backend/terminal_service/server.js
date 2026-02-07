@@ -14,6 +14,19 @@ const io = socketIo(server, {
   }
 });
 
+function getLocalIPv4() {
+  const interfaces = os.networkInterfaces();
+  for (const interfaceName of Object.keys(interfaces)) {
+    const interfaceAddresses = interfaces[interfaceName] || [];
+    for (const address of interfaceAddresses) {
+      if (address && address.family === 'IPv4' && !address.internal) {
+        return address.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
+
 // Add CORS headers for all requests
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -138,6 +151,10 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Web Analyzer Terminal Service running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  const localIp = getLocalIPv4();
+  console.log(`Web Analyzer Terminal Service running on port ${PORT}`);
+  console.log(`[INFO] Terminal(localhost): http://localhost:${PORT}`);
+  console.log(`[INFO] Terminal(127.0.0.1): http://127.0.0.1:${PORT}`);
+  console.log(`[INFO] Terminal(LAN): http://${localIp}:${PORT}`);
 });

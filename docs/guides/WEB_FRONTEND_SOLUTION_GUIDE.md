@@ -2,7 +2,7 @@
 
 ## 解决方案概述
 
-Web Analyzer Pro 是一个基于 qwen-code CLI 功能的现代化 React Web 前端，成功解决了 CLI 命令无法在前端直接使用的核心问题。
+Web Analyzer Pro 是一个基于 AI CLI 功能的现代化 React Web 前端，成功解决了 CLI 命令无法在前端直接使用的核心问题。
 
 ### 核心成就
 
@@ -331,7 +331,7 @@ DATABASE_URL=sqlite:///./web_analyzer.db
 ## 成果总结
 
 ### 核心问题解决
-**CLI命令Web化**: 成功将qwen-code的30+命令迁移到Web界面  
+**CLI命令Web化**: 成功将AI CLI的30+命令迁移到Web界面  
 **登录系统**: 完整支持Qwen OAuth和OpenAI API认证  
 **模型切换**: 可视化模型管理，支持自动视觉切换  
 **工具集成**: MCP协议支持，让AI具备实际操作能力  
@@ -344,4 +344,4 @@ DATABASE_URL=sqlite:///./web_analyzer.db
 **智能压缩**: 自动节省Token成本，延长对话时长  
 **项目导向**: 面向实际项目的初始化和配置系统  
 
-这个完整的Web前端解决方案成功地将qwen-code的强大CLI功能带到了现代化的Web界面中，不仅保留了所有核心功能，还通过可视化、智能化的方式大幅提升了用户体验。
+这个完整的Web前端解决方案成功地将AI CLI的强大能力带到了现代化的Web界面中，不仅保留了所有核心功能，还通过可视化、智能化的方式大幅提升了用户体验。

@@ -39,7 +39,7 @@ for /f %%v in ('node -p "process.versions.node"') do set "NODE_VER=%%v"
 for /f "tokens=1 delims=." %%m in ("%NODE_VER%") do set "NODE_MAJOR=%%m"
 if %NODE_MAJOR% lss 20 (
     echo [错误] Node.js 版本过低: %NODE_VER%
-    echo Qwen-Code 需要 Node.js 20+
+    echo Node.js终端服务需要 Node.js 20+
     pause
     exit /b 1
 )
@@ -80,6 +80,7 @@ for /f "tokens=1,2 delims==" %%a in ('type .env ^| findstr /v "^#" ^| findstr "=
 
 if "%BACKEND_PORT%"=="" set BACKEND_PORT=8000
 if "%FRONTEND_PORT%"=="" set FRONTEND_PORT=3000
+if "%TERMINAL_SERVICE_PORT%"=="" set TERMINAL_SERVICE_PORT=3001
 
 :: 创建必要的目录
 if not exist "data" mkdir data
@@ -199,7 +200,7 @@ echo [INFO] Frontend dist folder: frontend\dist\
 
 cd ..
 
-:: Qwen-Code功能已移除，跳过相关安装
+:: 独立AI终端服务位于 backend\terminal_service
 
 :: 启动服务
 echo.
@@ -220,8 +221,8 @@ if not exist "node_modules" (
         goto skip_terminal
     )
 )
-echo [信息] 启动Node.js终端服务 (端口 3001)...
-start "Terminal-Service" cmd /k "npm start"
+echo [信息] 启动Node.js终端服务 (端口 %TERMINAL_SERVICE_PORT%)...
+start "Terminal-Service" cmd /k "set PORT=%TERMINAL_SERVICE_PORT%&& npm start"
 cd ..\..
 
 :skip_terminal
@@ -241,7 +242,7 @@ cd frontend
 start "Frontend-React" cmd /k "npx vite --host 0.0.0.0 --port %FRONTEND_PORT%"
 cd ..
 
-:: Qwen-Code服务已移除，跳过启动
+:: 独立AI终端服务已在上方启动
 
 :: 获取本机IP地址
 set "LOCAL_IP="
@@ -250,7 +251,7 @@ for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /c:"IPv4"') do (
         if not defined LOCAL_IP set "LOCAL_IP=%%j"
     )
 )
-if not defined LOCAL_IP set "LOCAL_IP=localhost"
+if not defined LOCAL_IP set "LOCAL_IP=127.0.0.1"
 
 echo.
 echo ========================================
@@ -259,10 +260,23 @@ echo ========================================
 echo.
 echo 前端地址: 
 echo   - 本地访问: http://localhost:%FRONTEND_PORT%
+echo   - 回环地址: http://127.0.0.1:%FRONTEND_PORT%
 echo   - IP访问:   http://%LOCAL_IP%:%FRONTEND_PORT%
 echo.
-echo 后端API:  http://localhost:%BACKEND_PORT%
-echo API文档:  http://localhost:%BACKEND_PORT%/docs
+echo 后端API:
+echo   - 本地访问: http://localhost:%BACKEND_PORT%
+echo   - 回环地址: http://127.0.0.1:%BACKEND_PORT%
+echo   - IP访问:   http://%LOCAL_IP%:%BACKEND_PORT%
+echo.
+echo AI终端服务:
+echo   - 本地访问: http://localhost:%TERMINAL_SERVICE_PORT%
+echo   - 回环地址: http://127.0.0.1:%TERMINAL_SERVICE_PORT%
+echo   - IP访问:   http://%LOCAL_IP%:%TERMINAL_SERVICE_PORT%
+echo.
+echo API文档:
+echo   - 本地访问: http://localhost:%BACKEND_PORT%/docs
+echo   - 回环地址: http://127.0.0.1:%BACKEND_PORT%/docs
+echo   - IP访问:   http://%LOCAL_IP%:%BACKEND_PORT%/docs
 echo.
 echo 按任意键打开浏览器...
 if "%AUTO_MODE%"=="1" (
@@ -280,7 +294,7 @@ echo          启动完成总结
 echo ========================================
 echo [OK] 后端服务已启动 (FastAPI + Uvicorn)
 echo [OK] 前端服务已启动 (Vite开发服务器)
-echo [OK] Node.js终端服务已启动 (Qwen助手集成)
+echo [OK] Node.js终端服务已启动 (AI CLI集成)
 echo [OK] 浏览器已自动打开应用
 echo.
 echo Service management:

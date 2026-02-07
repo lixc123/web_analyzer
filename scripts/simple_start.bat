@@ -29,9 +29,13 @@ if not exist ".env" (
     )
 )
 
-:: 加载环境变量（简化版）
-set BACKEND_PORT=8000
-set FRONTEND_PORT=3000
+:: 加载环境变量
+for /f "tokens=1,2 delims==" %%a in ('type .env ^| findstr /v "^#" ^| findstr "="') do (
+    set "%%a=%%b"
+)
+if "%BACKEND_PORT%"=="" set BACKEND_PORT=8000
+if "%FRONTEND_PORT%"=="" set FRONTEND_PORT=3000
+if "%TERMINAL_SERVICE_PORT%"=="" set TERMINAL_SERVICE_PORT=3001
 
 :: 创建必要目录
 if not exist "data" mkdir data
@@ -52,8 +56,8 @@ if exist "package.json" (
         echo [信息] 安装Node.js终端服务依赖...
         call npm install --silent >nul 2>&1
     )
-    echo [信息] 启动Node.js终端服务 (端口 3001)...
-    start "Terminal-Service" cmd /k "npm start"
+    echo [信息] 启动Node.js终端服务 (端口 %TERMINAL_SERVICE_PORT%)...
+    start "Terminal-Service" cmd /k "set PORT=%TERMINAL_SERVICE_PORT%&& npm start"
 ) else (
     echo [警告] 未发现terminal_service，跳过终端服务启动
 )
@@ -94,7 +98,7 @@ echo [信息] 启动前端服务...
 start "Frontend-React" cmd /k "npx vite --host 0.0.0.0 --port %FRONTEND_PORT%"
 cd ..
 
-:: Qwen-Code服务已移除，跳过启动
+:: 独立AI终端服务已在上方启动
 
 :: 获取本机IP地址
 for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /c:"IPv4"') do set LOCAL_IP=%%i
@@ -107,10 +111,23 @@ echo ========================================
 echo.
 echo 前端访问地址:
 echo   - 本地访问: http://localhost:%FRONTEND_PORT%
+echo   - 回环地址: http://127.0.0.1:%FRONTEND_PORT%
 echo   - IP访问:   http://%LOCAL_IP%:%FRONTEND_PORT%
 echo.
-echo 后端: http://localhost:%BACKEND_PORT%
-echo 文档: http://localhost:%BACKEND_PORT%/docs
+echo 后端地址:
+echo   - 本地访问: http://localhost:%BACKEND_PORT%
+echo   - 回环地址: http://127.0.0.1:%BACKEND_PORT%
+echo   - IP访问:   http://%LOCAL_IP%:%BACKEND_PORT%
+echo.
+echo AI终端服务:
+echo   - 本地访问: http://localhost:%TERMINAL_SERVICE_PORT%
+echo   - 回环地址: http://127.0.0.1:%TERMINAL_SERVICE_PORT%
+echo   - IP访问:   http://%LOCAL_IP%:%TERMINAL_SERVICE_PORT%
+echo.
+echo API文档:
+echo   - 本地访问: http://localhost:%BACKEND_PORT%/docs
+echo   - 回环地址: http://127.0.0.1:%BACKEND_PORT%/docs
+echo   - IP访问:   http://%LOCAL_IP%:%BACKEND_PORT%/docs
 echo.
 
 :: 等待3秒后打开浏览器 (优先使用IP地址)
@@ -123,7 +140,7 @@ echo          启动完成总结
 echo ========================================
 echo [OK] Backend service started (FastAPI + Uvicorn)
 echo [OK] Frontend service started (Vite dev server)
-echo [OK] Node.js Terminal service started (Qwen integration)
+echo [OK] Node.js Terminal service started (AI CLI integration)
 echo [OK] Browser opened automatically
 echo.
 echo Service Management:

@@ -161,10 +161,10 @@ const HomePage: React.FC = () => {
               </div>
 
               <div className="flex-between">
-                <span>Qwen-Code 服务</span>
+                <span>AI 终端服务</span>
                 <div>
-                  <span className={`status-dot ${healthData?.services?.qwen === 'ready' ? 'success' : 'error'}`}></span>
-                  <span>{healthData?.services?.qwen === 'ready' ? '就绪' : '未就绪'}</span>
+                  <span className={`status-dot ${healthData?.services?.terminal_service === 'ready' ? 'success' : 'error'}`}></span>
+                  <span>{healthData?.services?.terminal_service === 'ready' ? '就绪' : '未就绪'}</span>
                 </div>
               </div>
 

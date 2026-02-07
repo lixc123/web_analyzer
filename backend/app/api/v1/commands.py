@@ -1,5 +1,5 @@
 """
-命令处理API - Web版本qwen-code命令系统
+命令处理API - Web版AI终端命令系统
 实现/clear, /stats, /model, /help等30+命令功能
 """
 
@@ -342,7 +342,7 @@ async def get_help(command: Optional[str] = None):
         # 获取全部帮助信息
         return {
             "title": "Web Analyzer 命令帮助",
-            "description": "基于qwen-code CLI的Web命令系统",
+            "description": "基于AI CLI的Web命令系统",
             "categories": {
                 "session": "会话管理 - 清除、压缩、统计会话数据",
                 "model": "模型管理 - 切换AI模型和认证方式", 
@@ -360,7 +360,7 @@ async def get_help(command: Optional[str] = None):
                 "多种认证方式 (Qwen OAuth, OpenAI API)",
                 "智能模型切换 (编程/视觉模型自动切换)",
                 "实时会话统计和Token管理",
-                "30+专业命令 (基于qwen-code CLI)",
+                "30+专业命令 (基于AI CLI)",
                 "会话记忆和历史压缩",
                 "现代化Web界面"
             ]

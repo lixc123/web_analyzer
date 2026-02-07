@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     # 服务器配置
     backend_port: int = int(os.getenv("BACKEND_PORT", "8000"))
     frontend_port: int = int(os.getenv("FRONTEND_PORT", "3000"))
-    qwen_code_port: int = int(os.getenv("QWEN_CODE_PORT", "3001"))
+    terminal_service_port: int = int(os.getenv("TERMINAL_SERVICE_PORT", "3001"))
     
     # 数据目录配置 - 使用绝对路径确保一致性
     data_dir: str = str(PROJECT_ROOT / "data")
@@ -73,10 +73,9 @@ class Settings(BaseSettings):
     # 数据库配置 - 使用绝对路径
     database_url: str = f"sqlite:///{(PROJECT_ROOT / 'data' / 'app.db').as_posix()}"
     
-    # Qwen-Code本地模型配置
-    qwen_code_url: str = os.getenv("QWEN_CODE_URL", "http://localhost:3001")
-    qwen_model: str = os.getenv("QWEN_MODEL", "qwen-code")
-    qwen_repo_root: str = os.getenv("QWEN_REPO_ROOT", "")
+    # AI 终端服务配置
+    terminal_service_url: str = os.getenv("TERMINAL_SERVICE_URL", "http://localhost:3001")
+    ai_cli_default: str = os.getenv("AI_CLI_DEFAULT", "qwen")
     # 保留OpenAI配置以备将来扩展（当前未使用）
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "")

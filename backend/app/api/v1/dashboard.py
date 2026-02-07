@@ -10,6 +10,7 @@ import os
 import logging
 from typing import Dict, Any
 from pathlib import Path
+import httpx
 
 from ...config import settings
 from ...database import HybridStorage
@@ -283,26 +284,27 @@ async def get_services_status() -> Dict[str, str]:
     services_status = {}
     
     try:
-        # 检查Qwen服务
+        # 检查终端服务
         try:
-            # 这里应该检查实际的qwen服务状态
-            services_status["qwen"] = "ready"
-        except:
-            services_status["qwen"] = "error"
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(f"{settings.terminal_service_url.rstrip('/')}/health")
+            services_status["terminal_service"] = "ready" if response.status_code == 200 else "error"
+        except Exception:
+            services_status["terminal_service"] = "error"
         
         
         # 检查Embedding服务
         try:
             services_status["embedding"] = "ready"
-        except:
+        except Exception:
             services_status["embedding"] = "error"
         
         # 检查数据库服务
         try:
             # 检查数据目录是否可访问
-            os.access(settings.data_dir, os.R_OK | os.W_OK)
-            services_status["database"] = "ready"
-        except:
+            has_data_access = os.access(settings.data_dir, os.R_OK | os.W_OK)
+            services_status["database"] = "ready" if has_data_access else "error"
+        except Exception:
             services_status["database"] = "error"
         
         return services_status
@@ -310,7 +312,7 @@ async def get_services_status() -> Dict[str, str]:
     except Exception as e:
         logger.warning(f"获取服务状态失败: {e}")
         return {
-            "qwen": "unknown",
+            "terminal_service": "unknown",
             "embedding": "unknown",
             "database": "unknown"
         }

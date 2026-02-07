@@ -1,6 +1,7 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { Card, Select, Button, message, Spin, Alert, Space, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons';
+import { getTerminalServiceHealthUrl, getTerminalServiceLabel, getTerminalServiceUrl } from '@/utils/terminalService';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -29,6 +30,15 @@ const Terminal: React.FC = () => {
   const [status, setStatus] = useState('正在连接...');
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const terminalServiceUrl = useMemo(() => getTerminalServiceUrl(), []);
+  const terminalServiceHealthUrl = useMemo(
+    () => getTerminalServiceHealthUrl(terminalServiceUrl),
+    [terminalServiceUrl]
+  );
+  const terminalServiceLabel = useMemo(
+    () => getTerminalServiceLabel(terminalServiceUrl),
+    [terminalServiceUrl]
+  );
 
   // 支持的AI模型配置
   const aiModels: AIModel[] = [
@@ -80,12 +90,12 @@ const Terminal: React.FC = () => {
   // 检查终端服务是否可用
   const checkTerminalService = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:3001/health');
+      const response = await fetch(terminalServiceHealthUrl);
       return response.ok;
     } catch {
       return false;
     }
-  }, []);
+  }, [terminalServiceHealthUrl]);
 
   // 加载终端iframe
   const loadTerminal = useCallback(() => {
@@ -106,7 +116,7 @@ const Terminal: React.FC = () => {
       setLoading(false);
       setTerminalReady(false);
       setStatus('连接失败');
-      setError('无法连接到终端服务，请确保Node.js终端服务在端口3001运行');
+      setError(`无法连接到终端服务，请确保Node.js终端服务在 ${terminalServiceLabel} 运行`);
     };
 
     // 设置超时检查
@@ -125,8 +135,8 @@ const Terminal: React.FC = () => {
     };
 
     // 刷新iframe
-    iframe.src = 'http://localhost:3001';
-  }, []);
+    iframe.src = terminalServiceUrl;
+  }, [terminalServiceLabel, terminalServiceUrl]);
 
   // 切换会话和AI模型
   const switchToSession = () => {

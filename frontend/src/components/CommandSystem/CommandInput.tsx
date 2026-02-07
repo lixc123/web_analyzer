@@ -23,7 +23,7 @@ export interface CommandArg {
   options?: string[];
 }
 
-// qwen-code命令映射到Web版本 - 完整增强版
+// AI CLI命令映射到Web版本 - 完整增强版
 const WEB_COMMANDS: Command[] = [
   // 智能体管理命令 - 高优先级
   {
