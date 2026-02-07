@@ -92,6 +92,7 @@ htmlcov/
 # Temporary files
 tmp/
 temp/
+*.pid
 
 # Backend specific
 backend/venv/
