@@ -205,6 +205,32 @@ class FridaHook:
             'has_script': self.script is not None
         }
 
+    def list_modules(self, limit: int = 500) -> List[Dict[str, Any]]:
+        """列出已加载模块（best-effort）。"""
+        if not self.is_attached():
+            raise ValueError("未附加到任何进程")
+
+        modules = []
+        try:
+            items = self.session.enumerate_modules() if self.session else []
+            for m in items[: int(limit)]:
+                try:
+                    modules.append(
+                        {
+                            "name": getattr(m, "name", None),
+                            "base_address": str(getattr(m, "base_address", "")),
+                            "size": int(getattr(m, "size", 0) or 0),
+                            "path": getattr(m, "path", None),
+                        }
+                    )
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.error(f"枚举模块失败: {e}")
+            raise
+
+        return modules
+
 
 def check_frida_installed() -> bool:
     """检查Frida是否已安装"""

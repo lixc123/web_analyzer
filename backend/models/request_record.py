@@ -16,7 +16,7 @@ RequestRecord 是 Web Recorder 的核心数据结构，用于存储单个 HTTP �
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -141,6 +141,19 @@ class RequestRecord:
     resource_type: Optional[str] = None
     """资源类型: xhr/fetch/script/stylesheet/image/document 等"""
 
+    # ===== 额外采集字段（B 方案补齐）=====
+    request_body_artifact: Optional[Dict[str, Any]] = None
+    """请求体落盘引用信息（大 body / multipart / 二进制）"""
+
+    failed: bool = False
+    """请求是否失败（Playwright requestfailed）"""
+
+    failure_text: Optional[str] = None
+    """失败原因/错误文本（Playwright failure/errorText）"""
+
+    error: Optional[str] = None
+    """兼容字段：失败/异常摘要（用于 UI/AI 汇总）"""
+
     @staticmethod
     def from_dict(data: Dict) -> "RequestRecord":
         timestamp = data.get("timestamp")
@@ -167,6 +180,10 @@ class RequestRecord:
             response_timestamp=data.get("response_timestamp"),
             call_stack=data.get("call_stack"),
             resource_type=data.get("resource_type"),
+            request_body_artifact=data.get("request_body_artifact"),
+            failed=bool(data.get("failed") or False),
+            failure_text=data.get("failure_text"),
+            error=data.get("error"),
         )
 
     def to_dict(self) -> Dict:
@@ -185,4 +202,8 @@ class RequestRecord:
             "response_timestamp": self.response_timestamp,
             "call_stack": self.call_stack,
             "resource_type": self.resource_type,
+            "request_body_artifact": self.request_body_artifact,
+            "failed": self.failed,
+            "failure_text": self.failure_text,
+            "error": self.error,
         }

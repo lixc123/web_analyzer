@@ -64,7 +64,17 @@ interface CallStackFrame {
   executionTime?: number;
 }
 
-export const EnhancedRequestAnalysisPanel: React.FC = () => {
+interface EnhancedRequestAnalysisPanelProps {
+  sessionId?: string;
+  sessionPath?: string;
+  sessionName?: string;
+}
+
+export const EnhancedRequestAnalysisPanel: React.FC<EnhancedRequestAnalysisPanelProps> = ({
+  sessionId,
+  sessionPath: propSessionPath,
+  sessionName: propSessionName
+}) => {
   const [requests, setRequests] = useState<HttpRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<HttpRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<HttpRequest | null>(null);
@@ -186,9 +196,14 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
       setCodeGenerating(true);
       message.loading('正在生成Python代码...', 0.5);
 
-      // TODO: 从实际会话管理获取当前会话路径
-      // 这里使用占位符，实际应该从 props 或 context 中获取
-      const sessionPath = 'data/sessions/current_session';
+      // 从props获取会话路径，如果没有则使用sessionId构建
+      const sessionPath = propSessionPath || (sessionId ? `data/sessions/${sessionId}` : null);
+      
+      if (!sessionPath) {
+        message.warning('无法获取会话路径，请确保已选择会话');
+        setCodeGenerating(false);
+        return;
+      }
 
       const response = await fetch('/api/v1/code/generate', {
         method: 'POST',
@@ -221,9 +236,13 @@ export const EnhancedRequestAnalysisPanel: React.FC = () => {
     try {
       message.loading('正在下载代码文件...', 0.5);
 
-      // TODO: 从实际会话管理获取当前会话名称
-      // 这里使用占位符，实际应该从 props 或 context 中获取
-      const sessionName = 'current_session';
+      // 从props获取会话名称，如果没有则使用sessionId
+      const sessionName = propSessionName || sessionId || null;
+      
+      if (!sessionName) {
+        message.warning('无法获取会话名称，请确保已选择会话');
+        return;
+      }
       
       const response = await fetch(`/api/v1/code/download/${sessionName}`);
       

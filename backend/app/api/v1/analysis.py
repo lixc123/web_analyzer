@@ -340,7 +340,7 @@ async def get_requests_from_body(body: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     # 如果提供了session_id，从会话中获取请求
     if 'session_id' in body:
-        from ..services.recorder_service import get_recorder_service
+        from ...services.shared_recorder import get_recorder_service
         recorder_service = get_recorder_service()
         page_data = await recorder_service.get_session_requests_page(
             body['session_id'],

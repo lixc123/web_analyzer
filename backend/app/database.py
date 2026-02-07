@@ -11,8 +11,31 @@ from pathlib import Path
 from .config import settings
 import os
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
+
+# ----------------------------------------------------------------------------
+# Import aliasing
+# ----------------------------------------------------------------------------
+# 项目在不同启动方式下可能会以 `app.*` 或 `backend.app.*` 的模块名导入同一份代码。
+# 若两套模块同时存在，会导致 SQLAlchemy 的 Base/engine 被创建两份，从而出现
+# “初始化已完成但表不存在”等严重的逻辑问题。
+# 这里将两种导入路径指向同一个模块对象，避免重复加载。
+if __name__ == "app.database":
+    # 确保父包已加载，否则后续 `import backend.app.database` 可能因父包缺失而失败
+    try:
+        import backend.app  # noqa: F401
+    except Exception:
+        pass
+    sys.modules.setdefault("backend.app.database", sys.modules[__name__])
+elif __name__ == "backend.app.database":
+    # 对称处理：当以 `backend.app.*` 启动时，尽量让 `app.*` 也能复用同一模块
+    try:
+        import app  # noqa: F401
+    except Exception:
+        pass
+    sys.modules.setdefault("app.database", sys.modules[__name__])
 
 # 创建数据库引擎
 # SQLite配置为线程安全
@@ -52,6 +75,8 @@ def create_tables():
     """
     # 导入所有模型以确保它们被注册
     from backend.models.filter_rule import FilterRuleModel
+    from backend.models.hook_db import HookSessionModel, HookRecordModel  # noqa: F401
+    from backend.models.proxy_capture_db import ProxySessionModel, ProxyRequestIndexModel  # noqa: F401
     
     Base.metadata.create_all(bind=engine)
 

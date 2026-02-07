@@ -485,7 +485,7 @@ const CodeGenerator: React.FC = () => {
               </Col>
             </Row>
 
-            <Divider orientation="left">请求方法统计</Divider>
+            <Divider titlePlacement="left">请求方法统计</Divider>
             <Space wrap>
               {Object.entries(currentStats.methods).map(([method, count]) => {
                 const colors: Record<string, string> = {
@@ -503,7 +503,7 @@ const CodeGenerator: React.FC = () => {
               })}
             </Space>
 
-            <Divider orientation="left">状态码统计</Divider>
+            <Divider titlePlacement="left">状态码统计</Divider>
             <Space wrap>
               {Object.entries(currentStats.status_codes).map(([code, count]) => {
                 const color = code.startsWith('2') ? 'success' :
@@ -517,7 +517,7 @@ const CodeGenerator: React.FC = () => {
               })}
             </Space>
 
-            <Divider orientation="left">涉及域名</Divider>
+            <Divider titlePlacement="left">涉及域名</Divider>
             <div style={{ maxHeight: 200, overflow: 'auto' }}>
               {currentStats.domains.map((domain, index) => (
                 <Tag key={index} style={{ marginBottom: 8 }}>
@@ -526,7 +526,7 @@ const CodeGenerator: React.FC = () => {
               ))}
             </div>
 
-            <Divider orientation="left">会话信息</Divider>
+            <Divider titlePlacement="left">会话信息</Divider>
             <Descriptions bordered size="small" column={1}>
               <Descriptions.Item label="会话名称">
                 {currentStats.session_name}

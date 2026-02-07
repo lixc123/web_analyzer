@@ -73,6 +73,8 @@ const App: React.FC = () => {
                 <TerminalPage />
               </ErrorBoundary>
             } />
+            {/* Backward-compatible alias */}
+            <Route path="ai" element={<Navigate to="/terminal" replace />} />
             <Route path="settings" element={
               <ErrorBoundary componentName="SettingsPage">
                 <SettingsPage />

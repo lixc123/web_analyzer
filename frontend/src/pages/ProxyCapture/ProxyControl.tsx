@@ -27,6 +27,8 @@ interface ProxyConfig {
   host: string
   port: number
   enable_system_proxy: boolean
+  enable_winhttp_proxy: boolean
+  winhttp_import_from_ie: boolean
 }
 
 const ProxyControl: React.FC = () => {
@@ -34,7 +36,9 @@ const ProxyControl: React.FC = () => {
   const [config, setConfig] = useState<ProxyConfig>({
     host: '0.0.0.0',
     port: 8888,
-    enable_system_proxy: false
+    enable_system_proxy: false,
+    enable_winhttp_proxy: false,
+    winhttp_import_from_ie: false,
   })
   const [isRunning, setIsRunning] = useState(false)
   const [localIP, setLocalIP] = useState('')
@@ -58,12 +62,25 @@ const ProxyControl: React.FC = () => {
     return () => clearInterval(interval)
   }, [])
 
+  // 同步表单显示（避免端口被自动调整后 UI 仍显示旧值）
+  useEffect(() => {
+    form.setFieldsValue(config)
+  }, [form, config])
+
   // 监听WebSocket状态更新
   useEffect(() => {
     if (proxyStatus) {
       setIsRunning(proxyStatus.running)
       setClientsCount(proxyStatus.clients_count || 0)
       setTotalRequests(proxyStatus.total_requests || 0)
+      if (proxyStatus.port) {
+        setConfig((prev) => ({
+          ...prev,
+          port: proxyStatus.port || prev.port,
+          enable_system_proxy: !!proxyStatus.system_proxy_enabled,
+          enable_winhttp_proxy: !!proxyStatus.winhttp_proxy_enabled,
+        }))
+      }
     }
   }, [proxyStatus])
 
@@ -74,6 +91,14 @@ const ProxyControl: React.FC = () => {
       setIsRunning(res.data.running)
       setClientsCount(res.data.clients_count || 0)
       setTotalRequests(res.data.total_requests || 0)
+      if (res.data.port) {
+        setConfig((prev) => ({
+          ...prev,
+          port: res.data.port || prev.port,
+          enable_system_proxy: !!res.data.system_proxy_enabled,
+          enable_winhttp_proxy: !!res.data.winhttp_proxy_enabled,
+        }))
+      }
     } catch (error) {
       console.error('获取状态失败:', error)
     } finally {
@@ -109,6 +134,9 @@ const ProxyControl: React.FC = () => {
       const response = await axios.post('/api/v1/proxy/start', config)
       if (response.status === 200) {
         setIsRunning(true)
+        if (response.data?.port) {
+          setConfig((prev) => ({ ...prev, port: response.data.port }))
+        }
         message.success('代理服务启动成功')
         // 立即检查状态
         setTimeout(checkStatus, 1000)
@@ -265,7 +293,21 @@ const ProxyControl: React.FC = () => {
               label="系统代理"
               name="enable_system_proxy"
               valuePropName="checked"
-              tooltip="启用后将自动设置系统代理（需要管理员权限）"
+              tooltip="WinINet/IE 代理：多数浏览器/部分应用使用（建议开启）"
+            >
+              <Switch
+                disabled={isRunning}
+                checkedChildren="启用"
+                unCheckedChildren="禁用"
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+            <Form.Item
+              label="WinHTTP 代理"
+              name="enable_winhttp_proxy"
+              valuePropName="checked"
+              tooltip="WinHTTP 代理：不少桌面应用/服务组件使用（抓不到时优先开启）"
             >
               <Switch
                 disabled={isRunning}
@@ -276,12 +318,31 @@ const ProxyControl: React.FC = () => {
           </Col>
         </Row>
 
-        {/* HTTPS捕获说明 */}
-        <Alert
-          message="HTTPS 捕获说明"
-          description={
-            <div>
-              <p>本系统默认支持HTTPS流量捕获，需要安装CA证书：</p>
+        <Row gutter={16}>
+          <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+            <Form.Item
+              label="WinHTTP 配置"
+              tooltip="可选：从 IE/WinINet 导入到 WinHTTP，适用于公司环境代理/PAC（不保证覆盖全部 PAC 行为）"
+              style={{ marginBottom: 8 }}
+            >
+              <Space>
+                <Form.Item name="winhttp_import_from_ie" valuePropName="checked" noStyle>
+                  <Switch disabled={isRunning || !config.enable_winhttp_proxy} checkedChildren="从IE导入" unCheckedChildren="手动设置" />
+                </Form.Item>
+                <span style={{ color: '#888', fontSize: 12 }}>
+                  {config.enable_winhttp_proxy ? '启用 WinHTTP 时生效' : '先开启 WinHTTP 代理'}
+                </span>
+              </Space>
+            </Form.Item>
+          </Col>
+        </Row>
+
+      {/* HTTPS捕获说明 */}
+      <Alert
+        message="HTTPS 捕获说明"
+        description={
+          <div>
+            <p>本系统默认支持HTTPS流量捕获，需要安装CA证书：</p>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
                 <li><strong>Windows:</strong> 在"证书管理"标签页点击"Windows 安装证书"</li>
                 <li><strong>移动端:</strong> 在"移动端配置向导"标签页扫码下载并安装证书</li>
@@ -289,6 +350,9 @@ const ProxyControl: React.FC = () => {
               </ul>
               <p style={{ marginTop: 8, marginBottom: 0 }}>
                 <strong>注意:</strong> 证书安装后即可自动捕获HTTPS流量，无需额外配置。
+              </p>
+              <p style={{ marginTop: 8, marginBottom: 0 }}>
+                <strong>桌面应用抓不到？</strong> 优先尝试开启 <strong>WinHTTP 代理</strong>；若仍无效，多半是 QUIC/HTTP3 或证书固定，需要向导/Native Hook。
               </p>
             </div>
           }

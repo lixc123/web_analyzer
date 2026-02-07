@@ -29,6 +29,10 @@ class HookOptions(BaseModel):
     navigation: bool = False       # 导航历史跟踪
     console: bool = False          # Console日志拦截
     performance: bool = False      # 性能数据监控
+    websocket: bool = False        # WebSocket 拦截
+    crypto: bool = False           # Web Crypto API 拦截（定位加密/签名）
+    storageExport: bool = False    # 存储数据完整导出（local/session/cookies/indexedDB）
+    stateManagement: bool = False  # 状态管理（Redux/Vuex/Pinia）快照/变更
 
 class CrawlerConfig(BaseModel):
     url: str

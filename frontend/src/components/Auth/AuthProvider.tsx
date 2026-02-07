@@ -64,8 +64,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const parsed = JSON.parse(savedAuth);
           setAuthState(prev => ({ ...prev, ...parsed }));
           
-          // 验证已保存的认证状态
-          await checkAuthStatus(parsed.sessionId);
+          // 验证已保存的认证状态（如果有sessionId）
+          const sessionId = parsed?.sessionId;
+          if (sessionId) {
+            const response = await fetch(`/api/v1/auth/status?session_id=${encodeURIComponent(sessionId)}`, {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+
+              if (data.isAuthenticated) {
+                const newState: AuthState = {
+                  isAuthenticated: true,
+                  authType: data.authType,
+                  sessionId: sessionId,
+                  user: data.user,
+                  apiConfig: data.apiConfig,
+                  quota: data.quota,
+                };
+
+                setAuthState(newState);
+                saveAuthState(newState);
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('加载认证状态失败:', error);
@@ -79,45 +103,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // 保存认证状态到localStorage
   const saveAuthState = (state: AuthState) => {
     localStorage.setItem('auth_state', JSON.stringify(state));
-  };
-
-  // 检查认证状态
-  const checkAuthStatus = async (sessionIdOverride?: string): Promise<boolean> => {
-    try {
-      const sessionId = sessionIdOverride || authState.sessionId;
-      if (!sessionId) {
-        return false;
-      }
-
-      const response = await fetch(`/api/v1/auth/status?session_id=${encodeURIComponent(sessionId)}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (!response.ok) return false;
-      
-      const data = await response.json();
-      
-      if (data.isAuthenticated) {
-        const newState: AuthState = {
-          isAuthenticated: true,
-          authType: data.authType,
-          sessionId: sessionId,
-          user: data.user,
-          apiConfig: data.apiConfig,
-          quota: data.quota,
-        };
-        
-        setAuthState(newState);
-        saveAuthState(newState);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('检查认证状态失败:', error);
-      return false;
-    }
   };
 
   // 登录方法 - AI功能已移除，仅支持访客模式

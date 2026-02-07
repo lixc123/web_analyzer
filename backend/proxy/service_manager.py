@@ -25,8 +25,12 @@ class ProxyServiceManager:
     _filter: Optional[RequestFilter] = None
     _storage = None
     _system_proxy_enabled: bool = False
+    _winhttp_proxy_enabled: bool = False
     _main_event_loop = None
     _system_proxy_instance = None  # 保存系统代理实例
+    _winhttp_proxy_instance = None  # 保存 WinHTTP 代理实例
+    _proxy_session_id: Optional[str] = None
+    _proxy_session_recorder = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -71,22 +75,27 @@ class ProxyServiceManager:
         # 深拷贝设备信息，避免外部修改影响
         device_info = copy.deepcopy(device_info)
 
-        # 使用User-Agent哈希生成唯一键，避免冲突
+        # 使用User-Agent哈希生成唯一键，避免冲突；若缺失则回退到 IP（更稳定）
         user_agent = device_info.get('user_agent', '')
         platform = device_info.get('platform', 'unknown')
         device = device_info.get('device', 'unknown')
 
         # 生成唯一设备键：使用User-Agent的完整MD5哈希值
+        ua_hash = None
         if user_agent:
             ua_hash = hashlib.md5(user_agent.encode()).hexdigest()
             device_key = f"{platform}_{device}_{ua_hash}"
         else:
-            device_key = f"{platform}_{device}_unknown"
+            ip = device_info.get("ip") or device_info.get("client_ip") or ""
+            ip = str(ip or "").strip()
+            device_key = f"{platform}_{device}_{ip}" if ip else f"{platform}_{device}_unknown"
 
         with self._devices_lock:
             if device_key not in self._devices:
                 self._devices[device_key] = {
                     **device_info,
+                    "device_id": device_key,
+                    "user_agent_hash": ua_hash,
                     'first_seen': datetime.now().isoformat(),
                     'request_count': 0
                 }
@@ -114,14 +123,15 @@ class ProxyServiceManager:
         """获取主事件循环"""
         return self._main_event_loop
 
-    def start_service(self, host: str, port: int, enable_system_proxy: bool = False, on_request=None, on_response=None) -> ProxyServer:
+    def start_service(self, host: str, port: int, enable_system_proxy: bool = False, on_request=None, on_response=None, on_websocket=None) -> ProxyServer:
         """启动代理服务"""
         with self._lock:
             if self.is_running():
                 self.stop_service()
 
-            # 记录是否启用系统代理
-            self._system_proxy_enabled = enable_system_proxy
+            # 记录是否启用系统代理（WinINet/IE）
+            self.set_system_proxy_enabled(enable_system_proxy)
+            # WinHTTP 代理由 API 层单独控制；启动服务时不默认改变其状态
 
             # 配置防火墙
             try:
@@ -137,7 +147,8 @@ class ProxyServiceManager:
                 host=host,
                 port=port,
                 on_request=on_request,
-                on_response=on_response
+                on_response=on_response,
+                on_websocket=on_websocket,
             )
 
             # 启动代理服务，返回实际使用的端口
@@ -179,9 +190,62 @@ class ProxyServiceManager:
             except Exception as e:
                 logger.warning(f"清理防火墙规则失败: {e}")
 
+    # --------------------------
+    # Proxy capture sessions
+    # --------------------------
+
+    def start_proxy_session(self, host: str, port: int) -> str:
+        """开启新的 proxy capture 会话（落盘）。"""
+        try:
+            from backend.proxy.proxy_session import ProxySessionRecorder, generate_proxy_session_id
+        except Exception as exc:
+            logger.warning("ProxySessionRecorder unavailable: %s", exc)
+            self._proxy_session_id = None
+            self._proxy_session_recorder = None
+            return ""
+
+        # 结束旧会话（若存在）
+        if self._proxy_session_recorder:
+            try:
+                self._proxy_session_recorder.finalize(status="stopped")
+            except Exception:
+                pass
+
+        session_id = generate_proxy_session_id()
+        try:
+            recorder = ProxySessionRecorder(session_id=session_id, host=host, port=int(port))
+        except Exception as exc:
+            logger.warning("start proxy session failed: %s", exc)
+            self._proxy_session_id = None
+            self._proxy_session_recorder = None
+            return ""
+
+        self._proxy_session_id = session_id
+        self._proxy_session_recorder = recorder
+        return session_id
+
+    def stop_proxy_session(self, status: str = "stopped") -> None:
+        if self._proxy_session_recorder:
+            try:
+                self._proxy_session_recorder.finalize(status=status)
+            except Exception:
+                pass
+        self._proxy_session_recorder = None
+        self._proxy_session_id = None
+
+    def get_proxy_session_id(self) -> Optional[str]:
+        return self._proxy_session_id
+
+    def get_proxy_session_recorder(self):
+        return self._proxy_session_recorder
+
     def is_system_proxy_enabled(self) -> bool:
         """检查是否启用了系统代理"""
         return self._system_proxy_enabled
+
+    def is_winhttp_proxy_enabled(self) -> bool:
+        """检查是否启用了 WinHTTP 代理"""
+        return self._winhttp_proxy_enabled
 
     def get_system_proxy_instance(self):
         """获取系统代理实例"""
@@ -190,3 +254,19 @@ class ProxyServiceManager:
     def set_system_proxy_instance(self, instance):
         """设置系统代理实例"""
         self._system_proxy_instance = instance
+
+    def get_winhttp_proxy_instance(self):
+        """获取 WinHTTP 代理实例"""
+        return self._winhttp_proxy_instance
+
+    def set_winhttp_proxy_instance(self, instance):
+        """设置 WinHTTP 代理实例"""
+        self._winhttp_proxy_instance = instance
+
+    def set_winhttp_proxy_enabled(self, enabled: bool):
+        """设置 WinHTTP 代理是否启用"""
+        self._winhttp_proxy_enabled = bool(enabled)
+
+    def set_system_proxy_enabled(self, enabled: bool):
+        """设置系统代理是否启用（WinINet/IE）"""
+        self._system_proxy_enabled = bool(enabled)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Tree,
   Card,
@@ -167,69 +167,8 @@ export const InteractiveFileTree: React.FC<InteractiveFileTreeProps> = ({
     totalSize: 0
   });
 
-  // 初始化扫描
-  useEffect(() => {
-    if (projectPath) {
-      scanDirectory(projectPath);
-    }
-  }, [projectPath]);
-
-  // 扫描目录
-  const scanDirectory = async (path: string) => {
-    setIsScanning(true);
-    setScanProgress(0);
-    
-    try {
-      const response = await fetch('/api/v1/commands/directory/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path,
-          config: scanConfig
-        })
-      });
-
-      if (!response.ok) throw new Error('扫描失败');
-
-      // 使用流式响应处理进度
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('无法读取响应');
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim());
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
-            
-            if (data.type === 'progress') {
-              setScanProgress(data.progress);
-            } else if (data.type === 'file_tree') {
-              setTreeData(data.tree);
-              updateStats(data.tree);
-            }
-          }
-        }
-      }
-
-      // 自动展开根目录
-      const rootKeys = treeData.filter(node => node.type === 'folder').map(node => node.key);
-      setExpandedKeys(rootKeys.slice(0, 3)); // 只展开前3个文件夹
-
-    } catch (error) {
-      message.error(`目录扫描失败: ${error}`);
-    } finally {
-      setIsScanning(false);
-      setScanProgress(0);
-    }
-  };
-
   // 更新统计信息
-  const updateStats = (nodes: FileNode[]) => {
+  const updateStats = useCallback((nodes: FileNode[]) => {
     let totalFiles = 0;
     let selectedFiles = 0;
     let analyzedFiles = 0;
@@ -246,9 +185,75 @@ export const InteractiveFileTree: React.FC<InteractiveFileTreeProps> = ({
     };
 
     nodes.forEach(traverse);
-    
+
     setStats({ totalFiles, selectedFiles, analyzedFiles, totalSize });
-  };
+  }, []);
+
+  // 初始化扫描
+  useEffect(() => {
+    if (!projectPath) return;
+
+    // 扫描目录（仅在初始化/项目路径变化时触发）
+    const scanDirectory = async (path: string) => {
+      setIsScanning(true);
+      setScanProgress(0);
+
+      try {
+        const response = await fetch('/api/v1/commands/directory/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path,
+            config: scanConfig
+          })
+        });
+
+        if (!response.ok) throw new Error('扫描失败');
+
+        // 使用流式响应处理进度
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('无法读取响应');
+
+        let latestTree: FileNode[] | null = null;
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = new TextDecoder().decode(value);
+          const lines = chunk.split('\n').filter(line => line.trim());
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === 'progress') {
+                setScanProgress(data.progress);
+              } else if (data.type === 'file_tree') {
+                latestTree = data.tree;
+                setTreeData(latestTree);
+                updateStats(latestTree);
+              }
+            }
+          }
+        }
+
+        // 自动展开根目录（用最新树数据，避免依赖异步state）
+        const treeForExpand = latestTree || [];
+        const rootKeys = treeForExpand.filter(node => node.type === 'folder').map(node => node.key);
+        setExpandedKeys(rootKeys.slice(0, 3)); // 只展开前3个文件夹
+
+      } catch (error) {
+        message.error(`目录扫描失败: ${error}`);
+      } finally {
+        setIsScanning(false);
+        setScanProgress(0);
+      }
+    };
+
+    scanDirectory(projectPath);
+  }, [projectPath, scanConfig, updateStats]);
 
   // 批量分析选中文件
   const analyzeSelectedFiles = async () => {

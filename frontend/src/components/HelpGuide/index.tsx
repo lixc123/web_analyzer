@@ -31,7 +31,7 @@ const HelpGuide: React.FC = () => {
             showIcon
           />
 
-          <Divider orientation="left">
+          <Divider titlePlacement="left">
             <RocketOutlined /> 快速开始
           </Divider>
 
@@ -98,7 +98,7 @@ const HelpGuide: React.FC = () => {
             ]}
           />
 
-          <Divider orientation="left">
+          <Divider titlePlacement="left">
             <ToolOutlined /> 功能详解
           </Divider>
 
@@ -241,7 +241,7 @@ const HelpGuide: React.FC = () => {
             </Panel>
           </Collapse>
 
-          <Divider orientation="left">
+          <Divider titlePlacement="left">
             <BugOutlined /> 常见问题
           </Divider>
 
@@ -295,7 +295,7 @@ const HelpGuide: React.FC = () => {
             </Panel>
           </Collapse>
 
-          <Divider orientation="left">
+          <Divider titlePlacement="left">
             <CodeOutlined /> 最佳实践
           </Divider>
 

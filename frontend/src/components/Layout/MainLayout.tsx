@@ -16,6 +16,7 @@ import {
   MenuFoldOutlined,
   HomeOutlined,
   BugOutlined,
+  DashboardOutlined,
   BarChartOutlined,
   RobotOutlined,
   CodeOutlined,
@@ -94,6 +95,12 @@ const MainLayout: React.FC = () => {
       icon: <BarChartOutlined />,
       label: '数据分析',
       title: '流量数据分析'
+    },
+    {
+      key: '/workbench',
+      icon: <DashboardOutlined />,
+      label: '分析工作台',
+      title: '会话 + AI终端联动'
     },
     {
       key: '/code-generator',

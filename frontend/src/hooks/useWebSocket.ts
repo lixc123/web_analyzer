@@ -42,25 +42,14 @@ export const useWebSocket = (clientId = 'default-client') => {
         // 优先使用环境变量配置
         const envBaseURL = import.meta.env.VITE_WS_BASE_URL;
         if (envBaseURL) {
-          return `${envBaseURL}/ws/${clientId}`;
+          return envBaseURL.endsWith('/ws')
+            ? `${envBaseURL}/${clientId}`
+            : `${envBaseURL}/ws/${clientId}`;
         }
 
-        // 如果没有配置环境变量，使用动态检测
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-
-        // 如果是localhost或127.0.0.1，直接使用localhost
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return `ws://localhost:8000/ws/${clientId}`;
-        }
-
-        // 生产环境：使用wss协议（假设前后端同域）
-        if (protocol === 'https:') {
-          return `wss://${hostname}/ws/${clientId}`;
-        }
-
-        // 局域网IP，假设后端在同一台机器的8000端口
-        return `ws://${hostname.replace(/:\d+$/, '')}:8000/ws/${clientId}`;
+        // 未配置环境变量时，默认同源（适配 Vite ws 代理 / 反向代理同域部署）。
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        return `${protocol}://${window.location.host}/ws/${clientId}`;
       };
 
       const wsUrl = getWebSocketURL()
@@ -87,6 +76,56 @@ export const useWebSocket = (clientId = 'default-client') => {
           timestamp: new Date().toISOString() 
         }
         ws.send(JSON.stringify(pingMessage))
+      }
+
+      const handleMessage = (message: WebSocketMessage) => {
+        switch (message.type) {
+          case 'crawler_progress':
+            window.dispatchEvent(new CustomEvent('crawler-progress', { detail: message.data }))
+            break
+
+          case 'analysis_result':
+            window.dispatchEvent(new CustomEvent('analysis-result', { detail: message.data }))
+            break
+
+          case 'proxy_status':
+            window.dispatchEvent(new CustomEvent('proxy-status', { detail: message.data }))
+            break
+
+          case 'new_request':
+            window.dispatchEvent(new CustomEvent('proxy-new-request', { detail: message.data }))
+            break
+
+          case 'device_connected':
+            window.dispatchEvent(new CustomEvent('proxy-device-connected', { detail: message.data }))
+            break
+
+          case 'device_disconnected':
+            window.dispatchEvent(new CustomEvent('proxy-device-disconnected', { detail: message.data }))
+            break
+
+          case 'error':
+            window.dispatchEvent(new CustomEvent('ws-error', {
+              detail: { message: message.message, data: message.data }
+            }))
+            break
+
+          case 'ping':
+            // respond inline (avoid extra hook deps)
+            ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }))
+            break
+
+          case 'pong':
+            break
+
+          case 'echo':
+          case 'text_message':
+            console.log('收到服务器回声:', message.data)
+            break
+
+          default:
+            console.log('收到未知类型的WebSocket消息:', message.type, message)
+        }
       }
 
       ws.onmessage = (event) => {
@@ -189,76 +228,6 @@ export const useWebSocket = (clientId = 'default-client') => {
         return { role: 'assistant', content: m.content }
       })
   }, [])
-
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    switch (message.type) {
-      case 'crawler_progress':
-        // 触发爬虫进度更新事件
-        window.dispatchEvent(new CustomEvent('crawler-progress', {
-          detail: message.data
-        }))
-        break
-
-      case 'analysis_result':
-        // 触发分析结果更新事件
-        window.dispatchEvent(new CustomEvent('analysis-result', {
-          detail: message.data
-        }))
-        break
-
-      case 'proxy_status':
-        // 触发代理状态更新事件
-        window.dispatchEvent(new CustomEvent('proxy-status', {
-          detail: message.data
-        }))
-        break
-
-      case 'new_request':
-        // 触发新请求事件
-        window.dispatchEvent(new CustomEvent('proxy-new-request', {
-          detail: message.data
-        }))
-        break
-
-      case 'device_connected':
-        // 触发设备连接事件
-        window.dispatchEvent(new CustomEvent('proxy-device-connected', {
-          detail: message.data
-        }))
-        break
-
-      case 'device_disconnected':
-        // 触发设备断开事件
-        window.dispatchEvent(new CustomEvent('proxy-device-disconnected', {
-          detail: message.data
-        }))
-        break
-
-      case 'error':
-        // 触发错误事件
-        window.dispatchEvent(new CustomEvent('ws-error', {
-          detail: { message: message.message, data: message.data }
-        }))
-        break
-
-      case 'ping':
-        // 响应ping消息
-        sendMessage({ type: 'pong', timestamp: new Date().toISOString() })
-        break
-
-      case 'pong':
-        break
-
-      case 'echo':
-      case 'text_message':
-        // 处理服务器回声消息，通常用于测试连接
-        console.log('收到服务器回声:', message.data)
-        break
-
-      default:
-        console.log('收到未知类型的WebSocket消息:', message.type, message)
-    }
-  }, [sendMessage])
 
   // 组件挂载时连接
   useEffect(() => {

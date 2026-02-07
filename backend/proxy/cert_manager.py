@@ -18,10 +18,17 @@ class CertManager:
         初始化证书管理器
 
         Args:
-            cert_dir: 证书目录路径，默认为 ~/.mitmproxy
+            cert_dir: 证书目录路径，默认使用项目内 mitmproxy confdir（可用环境变量 MITMPROXY_CONFDIR 覆盖）
         """
         if cert_dir is None:
-            cert_dir = os.path.expanduser("~/.mitmproxy")
+            # Prefer project-local confdir for portability and sandbox compatibility.
+            # Fall back to ~/.mitmproxy when settings cannot be imported.
+            try:
+                from backend.app.config import settings
+
+                cert_dir = settings.mitmproxy_confdir
+            except Exception:
+                cert_dir = os.path.expanduser("~/.mitmproxy")
 
         self.cert_dir = cert_dir
         self.ca_cert_path = os.path.join(cert_dir, "mitmproxy-ca-cert.pem")

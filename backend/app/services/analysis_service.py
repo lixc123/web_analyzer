@@ -199,25 +199,22 @@ class AnalysisService:
             
             # 创建并发分析任务（使用字典避免索引依赖）
             analysis_tasks = {}
+            loop = asyncio.get_running_loop()
 
             if analysis_type in ["all", "entropy"]:
-                analysis_tasks["entropy"] = asyncio.create_task(
-                    asyncio.get_event_loop().run_in_executor(
-                        self._executor,
-                        self.analyzer.analyze_entropy,
-                        request_records,
-                        config.get("min_entropy", 4.0)
-                    )
+                analysis_tasks["entropy"] = loop.run_in_executor(
+                    self._executor,
+                    self.analyzer.analyze_entropy,
+                    request_records,
+                    config.get("min_entropy", 4.0)
                 )
 
             if analysis_type in ["all", "sensitive_params"]:
-                analysis_tasks["sensitive_params"] = asyncio.create_task(
-                    asyncio.get_event_loop().run_in_executor(
-                        self._executor,
-                        self.analyzer.detect_sensitive_parameters,
-                        request_records,
-                        config.get("sensitive_keywords", [])
-                    )
+                analysis_tasks["sensitive_params"] = loop.run_in_executor(
+                    self._executor,
+                    self.analyzer.detect_sensitive_parameters,
+                    request_records,
+                    config.get("sensitive_keywords", [])
                 )
 
             # 等待所有分析任务完成

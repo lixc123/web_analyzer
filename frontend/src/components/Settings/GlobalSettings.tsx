@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   Card,
   Tabs,
@@ -145,14 +145,7 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [form] = Form.useForm();
 
-  // 加载配置
-  useEffect(() => {
-    if (visible) {
-      loadConfig();
-    }
-  }, [visible]);
-
-  const loadConfig = () => {
+  const loadConfig = useCallback(() => {
     try {
       const savedConfig = localStorage.getItem('globalConfig');
       if (savedConfig) {
@@ -165,7 +158,14 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
       console.error('加载配置失败:', error);
       message.error('加载配置失败，使用默认配置');
     }
-  };
+  }, [form]);
+
+  // 加载配置
+  useEffect(() => {
+    if (visible) {
+      loadConfig();
+    }
+  }, [visible, loadConfig]);
 
   // 保存配置
   const saveConfig = async () => {

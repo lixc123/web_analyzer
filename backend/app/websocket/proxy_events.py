@@ -47,6 +47,22 @@ class ProxyEventBroadcaster:
         }
         await self._broadcast(message)
 
+    async def broadcast_websocket_event(self, ws_event: dict):
+        """广播 WebSocket 事件（连接/消息/关闭）到所有客户端"""
+        message = {
+            "type": "websocket_event",
+            "data": ws_event,
+        }
+        await self._broadcast(message)
+
+    async def broadcast_js_event(self, js_event: dict):
+        """广播 JS 注入事件（fetch/xhr/ws 调用栈等）到所有客户端"""
+        message = {
+            "type": "js_event",
+            "data": js_event,
+        }
+        await self._broadcast(message)
+
     async def _broadcast(self, message: dict):
         """内部广播方法"""
         import logging

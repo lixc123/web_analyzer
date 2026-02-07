@@ -47,7 +47,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from .config import settings
 from .database import init_database, HybridStorage
-from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters, native_hook, commands, tasks, request_analysis
+from .api.v1 import crawler, analysis, dashboard, auth, migration, terminal, code_generator, proxy, filters, native_hook, commands, tasks, request_analysis, js_injection, export
 from .websocket import manager
 
 # 更新日志级别（如果配置文件中有指定）
@@ -91,6 +91,8 @@ app.include_router(native_hook.router, tags=["native_hook"])
 app.include_router(commands.router, prefix="/api/v1/commands", tags=["commands"])
 app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["tasks"])
 app.include_router(request_analysis.router, prefix="/api/v1/request-analysis", tags=["request_analysis"])
+app.include_router(js_injection.router, prefix="/api/v1/js-injection", tags=["js_injection"])
+app.include_router(export.router, prefix="/api/v1/export", tags=["export"])
 
 # 静态文件服务
 frontend_dist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
@@ -152,9 +154,10 @@ async def health_check():
 @app.get("/api/v1/health")
 async def api_health_check():
     """API健康检查端点 - 给前端调用"""
+    from datetime import datetime, timezone
     return {
         "status": "healthy",
-        "timestamp": "2025-12-20T17:35:00Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "database": "connected",
         "cache": "active",
         "services": {
@@ -162,6 +165,52 @@ async def api_health_check():
             "analysis": "ready"
         }
     }
+
+@app.websocket("/ws/proxy-events")
+async def proxy_events_websocket(websocket: WebSocket):
+    """代理事件WebSocket端点 - 用于实时推送代理请求/响应/状态
+
+    NOTE: Must be defined before `/ws/{client_id}`; Starlette matches routes in
+    registration order and the catch-all `{client_id}` would otherwise shadow
+    this exact path.
+    """
+    from .websocket.proxy_events import broadcaster
+
+    try:
+        await broadcaster.connect(websocket)
+        logger.info("代理事件WebSocket客户端已连接")
+
+        # 发送初始连接确认消息
+        await websocket.send_json({
+            "type": "connected",
+            "data": {"message": "已连接到代理事件流"}
+        })
+
+        # 保持连接，等待客户端断开或发送心跳
+        while True:
+            try:
+                # 接收客户端消息（主要用于心跳检测）
+                data = await websocket.receive_text()
+                import json
+                try:
+                    message_data = json.loads(data)
+                    if message_data.get("type") == "ping":
+                        await websocket.send_json({
+                            "type": "pong",
+                            "data": {"timestamp": message_data.get("timestamp")}
+                        })
+                except json.JSONDecodeError:
+                    pass
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"代理事件WebSocket处理消息时出错: {e}")
+                break
+    except Exception as e:
+        logger.error(f"代理事件WebSocket连接错误: {e}")
+    finally:
+        await broadcaster.disconnect(websocket)
+        logger.info("代理事件WebSocket客户端已断开")
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
@@ -208,47 +257,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     finally:
         manager.disconnect(client_id)
         logger.info(f"客户端 {client_id} 断开连接")
-
-@app.websocket("/ws/proxy-events")
-async def proxy_events_websocket(websocket: WebSocket):
-    """代理事件WebSocket端点 - 用于实时推送代理请求/响应/状态"""
-    from .websocket.proxy_events import broadcaster
-    
-    try:
-        await broadcaster.connect(websocket)
-        logger.info("代理事件WebSocket客户端已连接")
-        
-        # 发送初始连接确认消息
-        await websocket.send_json({
-            "type": "connected",
-            "data": {"message": "已连接到代理事件流"}
-        })
-        
-        # 保持连接，等待客户端断开或发送心跳
-        while True:
-            try:
-                # 接收客户端消息（主要用于心跳检测）
-                data = await websocket.receive_text()
-                import json
-                try:
-                    message_data = json.loads(data)
-                    if message_data.get("type") == "ping":
-                        await websocket.send_json({
-                            "type": "pong",
-                            "data": {"timestamp": message_data.get("timestamp")}
-                        })
-                except json.JSONDecodeError:
-                    pass
-            except WebSocketDisconnect:
-                break
-            except Exception as e:
-                logger.error(f"代理事件WebSocket处理消息时出错: {e}")
-                break
-    except Exception as e:
-        logger.error(f"代理事件WebSocket连接错误: {e}")
-    finally:
-        await broadcaster.disconnect(websocket)
-        logger.info("代理事件WebSocket客户端已断开")
 
 @app.get("/ws-test")
 async def websocket_test_page():

@@ -91,7 +91,13 @@ def log_error(
         }
 
     # 记录到日志
-    logger.error(f"[{error_type}] {message}", extra=error_info)
+    # NOTE: `logging` 不允许 `extra` 覆盖 LogRecord 的保留字段（如 `message`），
+    # 否则会抛 KeyError 并导致异常处理链路再次崩溃。
+    try:
+        logger.error(f"[{error_type}] {message}", extra={"error_info": error_info})
+    except Exception:
+        # 避免日志记录失败导致错误处理器再次抛异常
+        logger.error(f"[{error_type}] {message} (log_error extra failed)", exc_info=True)
 
     # 存储到内存（用于调试）
     error_logs.append(error_info)

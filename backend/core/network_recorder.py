@@ -3,6 +3,7 @@ import json
 import time
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
+from collections import deque
 
 from .browser_manager import BrowserManager
 from .js_hooks import JS_HOOK_SCRIPT, generate_hook_script
@@ -26,6 +27,7 @@ class NetworkRecorder:
         self._log = log_callback or (lambda _msg: None)
         self._archiver: Optional[ResourceArchiver] = archiver
         self._pending_response_tasks: set[asyncio.Task] = set()
+        self._pending_request_body_tasks: set[asyncio.Task] = set()
         self._stopping: bool = False
         
         # 用户配置
@@ -77,6 +79,7 @@ class NetworkRecorder:
         self._records.clear()
         self._records_by_key.clear()
         self._pending_response_tasks.clear()
+        self._pending_request_body_tasks.clear()
         self._stopping = False
 
         if not self._listeners_attached:
@@ -94,19 +97,20 @@ class NetworkRecorder:
         self._is_recording = False
         self._log(f"[INFO] 停止录制，共捕获 {len(self._records)} 条请求")
 
-        if self._pending_response_tasks:
+        pending = set(self._pending_response_tasks) | set(self._pending_request_body_tasks)
+        if pending:
             loop = asyncio.get_running_loop()
             deadline = loop.time() + 5.0
 
-            while self._pending_response_tasks:
+            while pending:
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     self._log(
-                        f"[WARNING] 停止录制：仍有 {len(self._pending_response_tasks)} 个响应处理任务未完成，已超时"
+                        f"[WARNING] 停止录制：仍有 {len(pending)} 个异步任务未完成（响应/请求体落盘），已超时"
                     )
                     break
 
-                tasks = list(self._pending_response_tasks)
+                tasks = list(pending)
                 try:
                     await asyncio.wait_for(
                         asyncio.gather(*tasks, return_exceptions=True),
@@ -114,14 +118,17 @@ class NetworkRecorder:
                     )
                 except asyncio.TimeoutError:
                     self._log(
-                        f"[WARNING] 停止录制：仍有 {len(self._pending_response_tasks)} 个响应处理任务未完成，已超时"
+                        f"[WARNING] 停止录制：仍有 {len(pending)} 个异步任务未完成（响应/请求体落盘），已超时"
                     )
                     break
+
+                pending = set(self._pending_response_tasks) | set(self._pending_request_body_tasks)
         self._stopping = False
 
     def _attach_listeners(self, page: Any) -> None:  # page: playwright.async_api.Page
         page.on("request", self._on_request)
         page.on("response", self._on_response)
+        page.on("requestfailed", self._on_request_failed)
         page.on("console", self._on_console)
 
     # --- Playwright 事件回调 -------------------------------------------------
@@ -138,10 +145,79 @@ class NetworkRecorder:
         except Exception:  # noqa: BLE001
             headers = {}
 
+        post_data = None
+        post_data_buffer = None
         try:
             post_data = request.post_data
         except Exception:  # noqa: BLE001
             post_data = None
+        try:
+            post_data_buffer = getattr(request, "post_data_buffer", None)
+            if callable(post_data_buffer):
+                post_data_buffer = post_data_buffer()
+        except Exception:
+            post_data_buffer = None
+
+        request_body_artifact = None
+        if post_data is not None or post_data_buffer:
+            try:
+                content_type = ""
+                for k, v in (headers or {}).items():
+                    if str(k).lower() == "content-type":
+                        content_type = str(v or "")
+                        break
+
+                inline_limit = int(self._config.get("request_body_inline_limit") or 2000)
+                preview_bytes = int(self._config.get("request_body_preview_bytes") or 512)
+
+                if isinstance(post_data_buffer, (bytes, bytearray)) and post_data_buffer:
+                    body_bytes = bytes(post_data_buffer)
+                    body_str = None
+                else:
+                    body_str = str(post_data) if post_data is not None else ""
+                    body_bytes = body_str.encode("utf-8", errors="replace")
+
+                is_multipart = "multipart/form-data" in str(content_type or "").lower()
+                ct_low = str(content_type or "").lower()
+                text_like = bool(
+                    ct_low.startswith("text/")
+                    or ("application/json" in ct_low)
+                    or ("x-www-form-urlencoded" in ct_low)
+                    or ("javascript" in ct_low)
+                    or ("xml" in ct_low)
+                )
+                is_large = len(body_str or "") > inline_limit
+                is_binary_hint = bool(body_bytes and (not text_like) and (not is_multipart))
+                should_spill = bool(is_multipart or is_large or is_binary_hint)
+
+                if should_spill and self._archiver is not None and body_bytes:
+                    # 先写入预览，避免 UI/日志过大
+                    if text_like or is_multipart:
+                        preview = (body_str or "")[:inline_limit]
+                        if len(body_str or "") > inline_limit:
+                            preview += "...[truncated]"
+                    else:
+                        preview = body_bytes[:preview_bytes].hex()
+                        if len(body_bytes) > preview_bytes:
+                            preview += "...[truncated]"
+                    post_data = preview
+
+                    async def _spill() -> None:
+                        try:
+                            art = await asyncio.to_thread(self._archiver.save_request_body, str(key), body_bytes, content_type)
+                            record_obj = self._records_by_key.get(key)
+                            if record_obj is not None:
+                                record_obj.request_body_artifact = art
+                        except Exception as e:
+                            record_obj = self._records_by_key.get(key)
+                            if record_obj is not None:
+                                record_obj.request_body_artifact = {"error": str(e)}
+
+                    task = asyncio.create_task(_spill())
+                    self._pending_request_body_tasks.add(task)
+                    task.add_done_callback(self._pending_request_body_tasks.discard)
+            except Exception:
+                request_body_artifact = None
 
         record = RequestRecord(
             id=str(key),
@@ -151,6 +227,7 @@ class NetworkRecorder:
             headers=headers,
             post_data=post_data,
             resource_type=getattr(request, "resource_type", None),
+            request_body_artifact=request_body_artifact,
         )
 
         self._records.append(record)
@@ -162,6 +239,51 @@ class NetworkRecorder:
         task = asyncio.create_task(self._handle_response(response))
         self._pending_response_tasks.add(task)
         task.add_done_callback(self._pending_response_tasks.discard)
+
+    def _on_request_failed(self, request: Any) -> None:  # request: playwright.async_api.Request
+        """采集 Playwright requestfailed 事件，落盘失败原因。"""
+        if not self._is_recording:
+            return
+
+        key = id(request)
+        record = self._records_by_key.get(key)
+        if record is None:
+            # 极端情况下 request 事件未捕获到，仍尽量补一条记录
+            try:
+                headers = dict(request.headers)
+            except Exception:
+                headers = {}
+            try:
+                post_data = request.post_data
+            except Exception:
+                post_data = None
+            record = RequestRecord(
+                id=str(key),
+                timestamp=time.time(),
+                method=getattr(request, "method", ""),
+                url=getattr(request, "url", ""),
+                headers=headers,
+                post_data=post_data,
+                resource_type=getattr(request, "resource_type", None),
+                failed=True,
+            )
+            self._records.append(record)
+            self._records_by_key[key] = record
+
+        failure_text = None
+        try:
+            failure = getattr(request, "failure", None)
+            if callable(failure):
+                failure = failure()
+            if isinstance(failure, dict):
+                failure_text = failure.get("errorText") or failure.get("error_text") or failure.get("error") or failure.get("message")
+        except Exception:
+            failure_text = None
+
+        record.failed = True
+        record.failure_text = str(failure_text or "request_failed")
+        record.error = record.failure_text
+        self._log(f"[FAIL] {record.method} {record.url} - {record.failure_text}")
 
     def _on_console(self, message: Any) -> None:  # message: playwright.async_api.ConsoleMessage
         text = message.text
@@ -353,6 +475,193 @@ class NetworkRecorder:
             await page.goto(url, wait_until="domcontentloaded")
             
         print(f"[OK] 已导航到: {url}")
+
+        # 自动爬链路：根据 max_depth/follow_redirects 配置进行 BFS 访问链接
+        try:
+            await self._auto_crawl(page, start_url=url)
+        except Exception as e:
+            self._log(f"[WARNING] 自动爬链路失败: {e}")
+
+    async def _auto_crawl(self, page: Any, start_url: str) -> None:
+        """基于页面链接的 best-effort 自动爬链路。
+
+        语义约定（对应任务清单 Phase 1）：
+        - max_depth: 访问深度（包含起始页）。1 表示只访问起始页；2 表示起始页 + 其直接链接页。
+        - follow_redirects: 若为 False，则检测到导航发生重定向时，不继续从重定向后的页面提取/入队链接。
+        """
+        try:
+            max_depth = int(self._config.get("max_depth") or 1)
+        except Exception:
+            max_depth = 1
+        if max_depth <= 1:
+            if self._archiver is not None:
+                self._archiver.set_crawl_report({"enabled": False, "reason": "max_depth<=1"})
+            return
+
+        follow_redirects = bool(self._config.get("follow_redirects", True))
+        timeout_seconds = float(self._config.get("timeout") or 30)
+        timeout_ms = max(1000, int(timeout_seconds * 1000))
+
+        # 防止误配置导致爆炸式访问：默认最多 40 页，可通过 config.max_pages 覆盖
+        try:
+            max_pages = int(self._config.get("max_pages") or 40)
+        except Exception:
+            max_pages = 40
+        max_pages = max(1, min(max_pages, 500))
+
+        try:
+            max_links_per_page = int(self._config.get("max_links_per_page") or 40)
+        except Exception:
+            max_links_per_page = 40
+        max_links_per_page = max(1, min(max_links_per_page, 300))
+
+        def _normalize(u: str) -> str:
+            try:
+                parsed = urlparse(str(u or ""))
+                if parsed.scheme not in {"http", "https"}:
+                    return ""
+                # 去掉 fragment，避免 hash 路由导致爆炸
+                cleaned = parsed._replace(fragment="").geturl()
+                return cleaned
+            except Exception:
+                return ""
+
+        def _looks_like_page(u: str) -> bool:
+            try:
+                p = urlparse(u)
+                path = (p.path or "").lower()
+                if not path or path.endswith("/"):
+                    return True
+                deny = (
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".gif",
+                    ".webp",
+                    ".svg",
+                    ".ico",
+                    ".css",
+                    ".js",
+                    ".mjs",
+                    ".woff",
+                    ".woff2",
+                    ".ttf",
+                    ".eot",
+                    ".mp4",
+                    ".mp3",
+                    ".avi",
+                    ".pdf",
+                    ".zip",
+                    ".rar",
+                    ".7z",
+                )
+                return not any(path.endswith(ext) for ext in deny)
+            except Exception:
+                return False
+
+        visited: set[str] = set()
+        queue: deque[tuple[str, int]] = deque()
+        start_norm = _normalize(start_url)
+        if start_norm:
+            visited.add(start_norm)
+            queue.append((start_norm, 1))
+
+        pages_visited = 0
+        redirects_skipped = 0
+        errors: List[dict] = []
+
+        # 起始页已加载，直接从当前页面开始提取
+        while queue and pages_visited < max_pages:
+            target_url, depth = queue.popleft()
+            if depth > max_depth:
+                continue
+
+            # 起始页已在 start_recording 里导航过；其他页需要导航
+            if pages_visited > 0 or (target_url != start_norm):
+                try:
+                    await page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                    # 给页面一点时间触发 XHR/fetch
+                    try:
+                        if hasattr(page, "wait_for_timeout"):
+                            await page.wait_for_timeout(350)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    errors.append({"url": target_url, "error": str(e)})
+                    self._log(f"[CRAWL] goto failed: {target_url} ({e})")
+                    continue
+                try:
+                    after = _normalize(getattr(page, "url", "") or "")
+                except Exception:
+                    after = ""
+
+                redirected = bool(after and after != _normalize(target_url))
+                if redirected and not follow_redirects:
+                    redirects_skipped += 1
+                    self._log(f"[CRAWL] redirect skipped (follow_redirects=false): {target_url} -> {after}")
+                    pages_visited += 1
+                    continue
+
+            pages_visited += 1
+
+            if depth >= max_depth:
+                continue
+
+            # 提取链接并入队
+            try:
+                links = await page.evaluate(
+                    """() => {
+                        const out = [];
+                        const nodes = document.querySelectorAll('a[href]');
+                        for (const a of nodes) {
+                            try {
+                                const href = a.href;
+                                if (href) out.push(href);
+                            } catch (e) {}
+                        }
+                        return out;
+                    }"""
+                )
+            except Exception as e:
+                errors.append({"url": target_url, "error": f"extract_links_failed: {e}"})
+                continue
+
+            if not isinstance(links, list):
+                continue
+
+            added = 0
+            for raw in links:
+                if added >= max_links_per_page:
+                    break
+                u = _normalize(str(raw or ""))
+                if not u:
+                    continue
+                if not _looks_like_page(u):
+                    continue
+                if u in visited:
+                    continue
+                visited.add(u)
+                queue.append((u, depth + 1))
+                added += 1
+                if len(visited) >= max_pages:
+                    break
+
+        report = {
+            "enabled": True,
+            "max_depth": max_depth,
+            "follow_redirects": follow_redirects,
+            "max_pages": max_pages,
+            "max_links_per_page": max_links_per_page,
+            "visited_pages": pages_visited,
+            "queued_total": len(visited),
+            "redirects_skipped": redirects_skipped,
+            "errors_sample": errors[: min(10, len(errors))],
+        }
+        if self._archiver is not None:
+            try:
+                self._archiver.set_crawl_report(report)
+            except Exception:
+                pass
 
     def _process_browser_data(self, console_text: str) -> None:
         """处理浏览器数据事件"""

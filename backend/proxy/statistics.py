@@ -2,7 +2,7 @@
 请求统计功能
 """
 
-from typing import Dict
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from urllib.parse import urlparse
 from collections import deque
@@ -17,23 +17,34 @@ class RequestStatistics:
 
     MAX_RESPONSE_TIMES = 1000  # 最多保留1000个响应时间样本
     MAX_DOMAIN_STATS = 500  # 最多保留500个域名统计
+    MAX_RECENT_ERRORS = 80  # 最多保留80条最近错误（用于诊断）
 
     def __init__(self):
         self.total_requests = 0
         self.total_responses = 0
         self.success_requests = 0
         self.failed_requests = 0
+        self.total_errors = 0
         self.total_upload_bytes = 0
         self.total_download_bytes = 0
         self.response_times = deque(maxlen=self.MAX_RESPONSE_TIMES)
         self.source_stats = {}  # 按来源统计
         self.domain_stats = {}  # 按域名统计
+        self.recent_errors = deque(maxlen=self.MAX_RECENT_ERRORS)
         self._lock = threading.Lock()
 
     def record_request(self, request_data: dict):
         """记录单个请求的统计信息"""
         with self._lock:
             self.total_requests += 1
+
+            # 按来源统计（proxy capture）
+            try:
+                source = request_data.get("source") or request_data.get("device", {}).get("platform") or "unknown"
+                source = str(source)
+                self.source_stats[source] = self.source_stats.get(source, 0) + 1
+            except Exception:
+                pass
 
             # 统计上传流量
             if 'body' in request_data and request_data['body']:
@@ -73,6 +84,15 @@ class RequestStatistics:
             if 'response_time' in response_data:
                 self.response_times.append(response_data['response_time'])
 
+    def record_error(self, error_data: Dict[str, Any]):
+        """记录代理抓包错误（TLS握手/连接中断等）。"""
+        with self._lock:
+            self.total_errors += 1
+            item = dict(error_data or {})
+            if "timestamp" not in item:
+                item["timestamp"] = datetime.now().timestamp()
+            self.recent_errors.append(item)
+
     def get_summary(self) -> dict:
         """获取统计摘要"""
         with self._lock:
@@ -84,6 +104,8 @@ class RequestStatistics:
                 'success_requests': self.success_requests,
                 'failed_requests': self.failed_requests,
                 'pending_requests': self.total_requests - self.total_responses,
+                'total_errors': self.total_errors,
+                'recent_errors': list(self.recent_errors),
                 'total_upload_bytes': self.total_upload_bytes,
                 'total_download_bytes': self.total_download_bytes,
                 'average_response_time': avg_response_time,
@@ -98,8 +120,10 @@ class RequestStatistics:
             self.total_responses = 0
             self.success_requests = 0
             self.failed_requests = 0
+            self.total_errors = 0
             self.total_upload_bytes = 0
             self.total_download_bytes = 0
             self.response_times = deque(maxlen=self.MAX_RESPONSE_TIMES)
             self.source_stats = {}
             self.domain_stats = {}
+            self.recent_errors = deque(maxlen=self.MAX_RECENT_ERRORS)

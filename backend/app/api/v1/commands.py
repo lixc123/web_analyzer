@@ -4,12 +4,18 @@
 """
 
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from pathlib import Path
+import json
+import os
+import fnmatch
 from ...services.auth_service import AuthService
 from ...services.session_service import SessionService
 from ...services.command_service import CommandService, CommandResult
+from ...config import PROJECT_ROOT
 
 router = APIRouter()
 
@@ -359,3 +365,278 @@ async def get_help(command: Optional[str] = None):
                 "现代化Web界面"
             ]
         }
+
+
+def _match_any_pattern(path_value: str, patterns: List[str]) -> bool:
+    for pattern in patterns:
+        if not pattern:
+            continue
+        candidates = [pattern]
+        # Common glob style: `name/**` should also match the directory `name` itself.
+        if pattern.endswith("/**"):
+            candidates.append(pattern[:-3])
+
+        # Support matching at any depth (frontend default patterns are not anchored).
+        if not pattern.startswith("**/"):
+            candidates.append(f"**/{pattern}")
+            if pattern.endswith("/**"):
+                candidates.append(f"**/{pattern[:-3]}")
+        for candidate in candidates:
+            if fnmatch.fnmatchcase(path_value, candidate):
+                return True
+    return False
+
+
+def _build_file_tree(root: Path, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    include_hidden = bool(config.get("includeHidden", False))
+    follow_symlinks = bool(config.get("followSymlinks", False))
+    max_depth = int(config.get("maxDepth", 5))
+    exclude_patterns = list(config.get("excludePatterns") or [])
+    include_patterns = list(config.get("includePatterns") or [])
+
+    def should_skip(p: Path, rel_posix: str) -> bool:
+        if not include_hidden and p.name.startswith("."):
+            return True
+        if p.is_symlink() and not follow_symlinks:
+            return True
+        if exclude_patterns and _match_any_pattern(rel_posix, exclude_patterns):
+            return True
+        return False
+
+    def should_include_file(rel_posix: str) -> bool:
+        if not include_patterns:
+            return True
+        return _match_any_pattern(rel_posix, include_patterns)
+
+    def walk_dir(current: Path, depth: int) -> List[Dict[str, Any]]:
+        if depth > max_depth:
+            return []
+
+        try:
+            entries = list(current.iterdir())
+        except Exception:
+            return []
+
+        # 文件夹优先，其次按名称排序
+        entries.sort(key=lambda p: (p.is_file(), p.name.lower()))
+
+        nodes: List[Dict[str, Any]] = []
+        for entry in entries:
+            try:
+                rel = entry.relative_to(root).as_posix()
+            except Exception:
+                rel = entry.name
+
+            if should_skip(entry, rel):
+                continue
+
+            if entry.is_dir():
+                children = walk_dir(entry, depth + 1)
+                # 如果指定了 includePatterns，则仅保留包含可见子节点的目录
+                if include_patterns and not children:
+                    continue
+                nodes.append(
+                    {
+                        "key": rel,
+                        "title": entry.name,
+                        "path": str(entry),
+                        "isLeaf": False,
+                        "type": "folder",
+                        "children": children,
+                        "selected": False,
+                        "analyzed": False,
+                    }
+                )
+            else:
+                if not should_include_file(rel):
+                    continue
+                try:
+                    stat = entry.stat()
+                    size = stat.st_size
+                    last_modified = datetime.fromtimestamp(stat.st_mtime).isoformat()
+                except Exception:
+                    size = None
+                    last_modified = None
+
+                ext = entry.suffix.lstrip(".").lower() if entry.suffix else ""
+                nodes.append(
+                    {
+                        "key": rel,
+                        "title": entry.name,
+                        "path": str(entry),
+                        "isLeaf": True,
+                        "type": "file",
+                        "size": size,
+                        "extension": ext or None,
+                        "lastModified": last_modified,
+                        "selected": False,
+                        "analyzed": False,
+                    }
+                )
+
+        return nodes
+
+    children = walk_dir(root, depth=0)
+    root_key = root.as_posix()
+    return [
+        {
+            "key": root_key,
+            "title": root.name or root_key,
+            "path": str(root),
+            "isLeaf": False,
+            "type": "folder",
+            "children": children,
+            "selected": False,
+            "analyzed": False,
+        }
+    ]
+
+
+@router.post("/directory/scan")
+async def scan_directory(body: Dict[str, Any]):
+    """扫描目录并返回文件树（SSE 流式，兼容前端 DirectoryTree 组件）"""
+    raw_path = (body or {}).get("path") or ""
+    config = (body or {}).get("config") or {}
+
+    base_path = Path(raw_path)
+    if not raw_path:
+        base_path = PROJECT_ROOT
+    elif not base_path.is_absolute():
+        base_path = (PROJECT_ROOT / base_path).resolve()
+
+    if not base_path.exists() or not base_path.is_dir():
+        raise HTTPException(status_code=400, detail=f"目录不存在或不是目录: {base_path}")
+
+    async def event_stream():
+        yield f"data: {json.dumps({'type': 'progress', 'progress': 5}, ensure_ascii=False)}\n\n"
+
+        tree = _build_file_tree(base_path, config)
+
+        yield f"data: {json.dumps({'type': 'progress', 'progress': 90}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'file_tree', 'tree': tree}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'progress', 'progress': 100}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/directory/analyze")
+async def analyze_files(body: Dict[str, Any]):
+    """对选中的文件做轻量分析（为前端文件树标注信息）"""
+    files = (body or {}).get("files") or []
+    analyses: List[Dict[str, Any]] = []
+
+    def classify(ext: str) -> Dict[str, Any]:
+        ext = (ext or "").lower()
+        code_map = {
+            "js": "JavaScript",
+            "ts": "TypeScript",
+            "jsx": "JavaScript (React)",
+            "tsx": "TypeScript (React)",
+            "py": "Python",
+            "java": "Java",
+            "c": "C",
+            "cpp": "C++",
+            "cs": "C#",
+            "go": "Go",
+            "rs": "Rust",
+        }
+        if ext in code_map:
+            return {"type": "code", "language": code_map[ext]}
+        if ext in {"json", "yaml", "yml", "toml", "ini", "env", "xml"}:
+            return {"type": "config"}
+        if ext in {"csv", "db", "sqlite", "parquet"}:
+            return {"type": "data"}
+        if ext in {"png", "jpg", "jpeg", "gif", "svg", "webp"}:
+            return {"type": "image"}
+        if ext in {"md", "txt", "pdf", "doc", "docx"}:
+            return {"type": "document"}
+        return {"type": "other"}
+
+    for file_path in files:
+        p = Path(str(file_path))
+        ext = p.suffix.lstrip(".")
+        meta = classify(ext)
+        analysis: Dict[str, Any] = {
+            "path": str(p),
+            "type": meta.get("type", "other"),
+            "risk": "low",
+        }
+        if "language" in meta:
+            analysis["language"] = meta["language"]
+
+        if not p.exists() or not p.is_file():
+            analysis["risk"] = "high"
+            analysis["issues"] = ["文件不存在或不是文件"]
+            analyses.append(analysis)
+            continue
+
+        try:
+            size = p.stat().st_size
+        except Exception:
+            size = None
+
+        # 避免读取超大文件
+        if size is not None and size > 2 * 1024 * 1024:
+            analysis["risk"] = "medium"
+            analysis["issues"] = ["文件过大，已跳过内容分析"]
+            analyses.append(analysis)
+            continue
+
+        issues: List[str] = []
+        suggestions: List[str] = []
+        complexity = None
+        lines = None
+
+        try:
+            content = p.read_text(encoding="utf-8", errors="ignore")
+            lines = len(content.splitlines())
+
+            if analysis["type"] == "code":
+                # 非严格复杂度：统计常见分支/循环关键字出现次数
+                keywords = [" if ", " for ", " while ", " switch ", " case ", " catch ", " except "]
+                complexity = sum(content.count(k) for k in keywords)
+
+                # 简单风险规则
+                risky_snippets = [
+                    ("eval(", "存在 eval()，可能带来代码注入风险"),
+                    ("exec(", "存在 exec()，可能带来代码注入风险"),
+                    ("os.system(", "存在系统命令执行，注意输入校验"),
+                    ("subprocess.", "存在子进程调用，注意输入校验"),
+                    ("password", "包含 password 关键字，注意敏感信息处理"),
+                    ("SECRET", "包含 SECRET 关键字，注意敏感信息处理"),
+                    ("token", "包含 token 关键字，注意敏感信息处理"),
+                ]
+                for needle, desc in risky_snippets:
+                    if needle.lower() in content.lower():
+                        issues.append(desc)
+
+                if any("代码注入" in i for i in issues) or any("系统命令" in i for i in issues):
+                    analysis["risk"] = "high"
+                elif issues:
+                    analysis["risk"] = "medium"
+
+                if issues:
+                    suggestions.append("检查敏感信息与危险调用的输入来源，必要时增加校验/脱敏/白名单。")
+            else:
+                # 其他类型给一些通用建议
+                if analysis["type"] == "config" and ("SECRET" in content or "password" in content.lower()):
+                    issues.append("配置文件可能包含敏感信息")
+                    analysis["risk"] = "medium"
+                    suggestions.append("建议将密钥放入环境变量或安全的密钥管理方案。")
+
+        except Exception as e:
+            analysis["risk"] = "medium"
+            issues.append(f"读取/分析失败: {e}")
+
+        if lines is not None:
+            analysis["lines"] = lines
+        if complexity is not None:
+            analysis["complexity"] = complexity
+        if issues:
+            analysis["issues"] = issues
+        if suggestions:
+            analysis["suggestions"] = suggestions
+
+        analyses.append(analysis)
+
+    return {"analyses": analyses}

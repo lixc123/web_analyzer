@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Card,
   Button,
@@ -120,20 +120,23 @@ export const SessionCompression: React.FC<SessionCompressionProps> = ({
   const [autoCompress, setAutoCompress] = useState(autoCompressionEnabled);
   const [lastCompressionTime, setLastCompressionTime] = useState<Date | null>(null);
 
-  // 检查是否需要压缩
-  const shouldCompress = () => {
+  const needCompression = useMemo(() => {
     if (!autoCompress) return false;
     if (tokenUsage.percentage >= 80) return true;
     if (tokenUsage.total > 3000 && !lastCompressionTime) return true;
-    if (lastCompressionTime && 
-        (new Date().getTime() - lastCompressionTime.getTime()) > 30 * 60 * 1000 && // 30分钟
-        tokenUsage.total > 2000) return true;
+    if (
+      lastCompressionTime &&
+      (Date.now() - lastCompressionTime.getTime()) > 30 * 60 * 1000 && // 30分钟
+      tokenUsage.total > 2000
+    ) {
+      return true;
+    }
     return false;
-  };
+  }, [autoCompress, tokenUsage.percentage, tokenUsage.total, lastCompressionTime]);
 
   // 自动压缩检查
   useEffect(() => {
-    if (shouldCompress()) {
+    if (needCompression) {
       message.info({
         content: (
           <div>
@@ -151,7 +154,7 @@ export const SessionCompression: React.FC<SessionCompressionProps> = ({
         key: 'compression-suggestion'
       });
     }
-  }, [tokenUsage.percentage, autoCompress]);
+  }, [needCompression]);
 
   // 执行压缩
   const performCompression = async (strategy: CompressionStrategy) => {

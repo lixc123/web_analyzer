@@ -45,10 +45,28 @@ interface RecordedRequest {
   url: string
   headers: Record<string, string>
   body?: string
+  body_artifact?: {
+    artifact_id: string
+    relative_path?: string
+    size?: number
+    sha256?: string
+    content_type?: string
+    is_binary?: boolean
+    truncated?: boolean
+  }
   response?: {
     status: number
     headers: Record<string, string>
     body: string
+  }
+  response_body_artifact?: {
+    artifact_id: string
+    relative_path?: string
+    size?: number
+    sha256?: string
+    content_type?: string
+    is_binary?: boolean
+    truncated?: boolean
   }
   timestamp: number
   call_stack?: any[]
@@ -289,6 +307,14 @@ const RequestRecorder: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
+      <Alert
+        type="info"
+        showIcon
+        message="请求录制/重放（request-analysis）"
+        description="录制基于 Proxy 捕获：请先在“代理录制”页启动代理服务；开始/停止录制用于对时间窗口内的请求做快照。调用栈仅在来源本身提供时可见（如配合 JS 注入或 Crawler 录制）。"
+        style={{ marginBottom: 16 }}
+      />
+
       {/* 统计卡片 */}
       {statistics && (
         <Row gutter={16} style={{ marginBottom: 24 }}>
@@ -385,7 +411,7 @@ const RequestRecorder: React.FC = () => {
       >
         <Alert
           message="请求录制说明"
-          description="开始录制后，系统将自动捕获所有HTTP/HTTPS请求。您可以查看请求详情、重放请求或导出为代码。"
+          description="开始录制后，将从 Proxy 捕获的流量中按时间窗口生成请求快照。您可以查看请求详情、重放请求或导出为代码。"
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
@@ -461,9 +487,29 @@ const RequestRecorder: React.FC = () => {
                 key: 'body',
                 label: '请求体',
                 children: selectedRequest.body ? (
-                  <SyntaxHighlighter language="json" style={vscDarkPlus} customStyle={{ fontSize: '12px' }}>
-                    {typeof selectedRequest.body === 'string' ? selectedRequest.body : JSON.stringify(selectedRequest.body, null, 2)}
-                  </SyntaxHighlighter>
+                  <div>
+                    {selectedRequest.body_artifact?.artifact_id && (
+                      <Space style={{ marginBottom: 8 }} wrap>
+                        <Tag color="geekblue">artifact</Tag>
+                        <Tag>{selectedRequest.body_artifact.artifact_id}</Tag>
+                        {typeof selectedRequest.body_artifact.size === 'number' && (
+                          <Text type="secondary">{selectedRequest.body_artifact.size} bytes</Text>
+                        )}
+                        {selectedRequest.body_artifact.content_type && (
+                          <Text type="secondary">{selectedRequest.body_artifact.content_type}</Text>
+                        )}
+                        <Button
+                          size="small"
+                          onClick={() => window.open(`/api/v1/proxy/artifacts/${encodeURIComponent(selectedRequest.body_artifact!.artifact_id)}`, '_blank')}
+                        >
+                          下载/打开
+                        </Button>
+                      </Space>
+                    )}
+                    <SyntaxHighlighter language="json" style={vscDarkPlus} customStyle={{ fontSize: '12px' }}>
+                      {typeof selectedRequest.body === 'string' ? selectedRequest.body : JSON.stringify(selectedRequest.body, null, 2)}
+                    </SyntaxHighlighter>
+                  </div>
                 ) : (
                   <Text type="secondary">无请求体</Text>
                 )
@@ -473,11 +519,29 @@ const RequestRecorder: React.FC = () => {
                 label: '响应',
                 children: selectedRequest.response ? (
                   <div>
-                    <Divider orientation="left">响应头</Divider>
+                    <Divider titlePlacement="left">响应头</Divider>
                     <SyntaxHighlighter language="json" style={vscDarkPlus} customStyle={{ fontSize: '12px' }}>
                       {JSON.stringify(selectedRequest.response.headers, null, 2)}
                     </SyntaxHighlighter>
-                    <Divider orientation="left">响应体</Divider>
+                    <Divider titlePlacement="left">响应体</Divider>
+                    {selectedRequest.response_body_artifact?.artifact_id && (
+                      <Space style={{ marginBottom: 8 }} wrap>
+                        <Tag color="geekblue">artifact</Tag>
+                        <Tag>{selectedRequest.response_body_artifact.artifact_id}</Tag>
+                        {typeof selectedRequest.response_body_artifact.size === 'number' && (
+                          <Text type="secondary">{selectedRequest.response_body_artifact.size} bytes</Text>
+                        )}
+                        {selectedRequest.response_body_artifact.content_type && (
+                          <Text type="secondary">{selectedRequest.response_body_artifact.content_type}</Text>
+                        )}
+                        <Button
+                          size="small"
+                          onClick={() => window.open(`/api/v1/proxy/artifacts/${encodeURIComponent(selectedRequest.response_body_artifact!.artifact_id)}`, '_blank')}
+                        >
+                          下载/打开
+                        </Button>
+                      </Space>
+                    )}
                     <SyntaxHighlighter language="json" style={vscDarkPlus} customStyle={{ fontSize: '12px', maxHeight: '300px' }}>
                       {selectedRequest.response.body}
                     </SyntaxHighlighter>
@@ -573,7 +637,7 @@ const RequestRecorder: React.FC = () => {
 
             {replayResult && (
               <div style={{ marginTop: 24 }}>
-                <Divider orientation="left">重放结果</Divider>
+                <Divider titlePlacement="left">重放结果</Divider>
                 {replayResult.success ? (
                   <Alert
                     message="重放成功"
@@ -581,7 +645,7 @@ const RequestRecorder: React.FC = () => {
                       <div>
                         <p>状态码: <Tag color="success">{replayResult.status_code}</Tag></p>
                         <p>耗时: {replayResult.duration_ms}ms</p>
-                        <Divider orientation="left">响应内容</Divider>
+                        <Divider titlePlacement="left">响应内容</Divider>
                         <SyntaxHighlighter language="json" style={vscDarkPlus} customStyle={{ fontSize: '11px', maxHeight: '200px' }}>
                           {replayResult.response_body || ''}
                         </SyntaxHighlighter>

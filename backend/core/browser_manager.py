@@ -93,6 +93,7 @@ class BrowserManager:
         self._playwright = None
         self._browser: Optional["Browser"] = None
         self._page: Optional["Page"] = None
+        self._screenshot_dir: Optional[Path] = None
 
     async def launch(self, headless: bool = False) -> None:
         if async_playwright is None:
@@ -325,8 +326,25 @@ class BrowserManager:
             return context
             
         except Exception as e:
-            print(f"[FAIL] Playwright启动失败: {e}")
-            raise RuntimeError(f"Playwright启动失败: {e}")
+            msg = str(e)
+            low = msg.lower()
+            hints = []
+
+            # Browser binary missing / not installed
+            if "executable doesn't exist" in low or "playwright install" in low or "chromium" in low and "download" in low:
+                hints.append("提示：Playwright 浏览器未安装/路径不可用。可运行：`python -m playwright install chromium`。")
+
+            # Linux shared library deps missing
+            if ("error while loading shared libraries" in low) or ("host system is missing dependencies" in low) or ("libnspr" in low) or ("libnss" in low):
+                hints.append("提示(Linux)：系统依赖缺失。可运行：`python -m playwright install-deps chromium`，或安装缺失库（如 libnspr4/libnss3 等）。")
+
+            # Permission denied creating default cache path
+            if ("permission denied" in low or "eacces" in low) and "ms-playwright" in low:
+                hints.append("提示：浏览器缓存目录无权限。可设置 `PLAYWRIGHT_BROWSERS_PATH` 到可写目录后再安装浏览器。")
+
+            hint_text = ("\n" + "\n".join(hints)) if hints else ""
+            print(f"[FAIL] Playwright启动失败: {msg}{hint_text}")
+            raise RuntimeError(f"Playwright启动失败: {msg}{hint_text}")
 
     async def take_screenshot(self, reason: str = "general", full_page: bool = True) -> Optional[str]:
         """截取页面截图"""
@@ -341,9 +359,8 @@ class BrowserManager:
             filename = f"screenshot_{timestamp}_{reason}.png"
             
             # 确定截图保存路径
-            from pathlib import Path
-            screenshots_dir = Path("screenshots")
-            screenshots_dir.mkdir(exist_ok=True)
+            screenshots_dir = self._screenshot_dir or Path("screenshots")
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
             screenshot_path = screenshots_dir / filename
             
             # 根据页面类型执行截图
@@ -394,9 +411,8 @@ class BrowserManager:
             filename = f"element_{timestamp}_{reason}.png"
             
             # 确定截图保存路径  
-            from pathlib import Path
-            screenshots_dir = Path("screenshots")
-            screenshots_dir.mkdir(exist_ok=True)
+            screenshots_dir = self._screenshot_dir or Path("screenshots")
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
             screenshot_path = screenshots_dir / filename
             
             # 查找元素并截图

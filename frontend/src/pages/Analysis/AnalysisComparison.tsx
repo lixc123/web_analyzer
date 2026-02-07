@@ -19,7 +19,7 @@ import {
   Progress
 } from 'antd'
 import {
-  CompareOutlined,
+  DiffOutlined,
   BarChartOutlined,
   ExclamationCircleOutlined,
   CheckCircleOutlined,
@@ -188,7 +188,7 @@ const AnalysisComparison: React.FC = () => {
       <Card
         title={
           <Space>
-            <CompareOutlined />
+            <DiffOutlined />
             <span>分析结果比较</span>
           </Space>
         }
@@ -212,9 +212,7 @@ const AnalysisComparison: React.FC = () => {
               onChange={setSelectedSession}
               loading={loading}
               showSearch
-              filterOption={(input, option) =>
-                (option?.children as string).toLowerCase().includes(input.toLowerCase())
-              }
+              optionFilterProp="children"
             >
               {sessions.map((session: any) => (
                 <Option key={session.name} value={session.name}>
@@ -239,7 +237,7 @@ const AnalysisComparison: React.FC = () => {
               extra={
                 <Button
                   type="primary"
-                  icon={<CompareOutlined />}
+                  icon={<DiffOutlined />}
                   onClick={compareAnalyses}
                   disabled={selectedAnalyses.length < 2}
                   loading={comparing}
@@ -310,7 +308,7 @@ const AnalysisComparison: React.FC = () => {
                   </Col>
                 </Row>
 
-                <Divider orientation="left">共同可疑请求</Divider>
+                <Divider titlePlacement="left">共同可疑请求</Divider>
                 {comparisonResult.comparison.common_suspicious.length > 0 ? (
                   <Table
                     dataSource={comparisonResult.comparison.common_suspicious}
@@ -359,7 +357,7 @@ const AnalysisComparison: React.FC = () => {
                   <Empty description="没有共同的可疑请求" />
                 )}
 
-                <Divider orientation="left">独特问题分布</Divider>
+                <Divider titlePlacement="left">独特问题分布</Divider>
                 <Row gutter={16}>
                   {Object.entries(comparisonResult.comparison.summary.unique_issues_per_analysis).map(
                     ([analysisId, count]) => (
@@ -395,7 +393,7 @@ const AnalysisComparison: React.FC = () => {
                   )}
                 </Row>
 
-                <Divider orientation="left">熵值对比</Divider>
+                <Divider titlePlacement="left">熵值对比</Divider>
                 {comparisonResult.comparison.entropy_comparison ? (
                   <Alert
                     message="熵值分析对比"
@@ -406,7 +404,7 @@ const AnalysisComparison: React.FC = () => {
                   <Empty description="无熵值对比数据" />
                 )}
 
-                <Divider orientation="left">敏感参数对比</Divider>
+                <Divider titlePlacement="left">敏感参数对比</Divider>
                 {comparisonResult.comparison.sensitive_params_comparison ? (
                   <Alert
                     message="敏感参数对比"

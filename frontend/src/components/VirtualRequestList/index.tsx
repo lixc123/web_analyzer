@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react'
-import { FixedSizeList as List } from 'react-window'
+import React from 'react'
+import { List } from 'react-window'
 import { Tag, Space, Button, Typography } from 'antd'
 import { EyeOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import './VirtualRequestList.css'
@@ -46,11 +46,12 @@ const VirtualRequestList: React.FC<VirtualRequestListProps> = ({
     return 'error'
   }
 
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+  const Row = ({ index, style, ariaAttributes }: any) => {
     const request = requests[index]
 
     return (
       <div
+        {...ariaAttributes}
         style={{
           ...style,
           borderBottom: '1px solid #f0f0f0',
@@ -162,14 +163,13 @@ const VirtualRequestList: React.FC<VirtualRequestListProps> = ({
     <div style={{ border: '1px solid #f0f0f0', borderRadius: '4px' }}>
       <Header />
       <List
-        height={height}
-        itemCount={requests.length}
-        itemSize={itemHeight}
-        width="100%"
+        rowCount={requests.length}
+        rowHeight={itemHeight}
+        rowComponent={Row}
+        rowProps={{}}
+        style={{ height, width: '100%' }}
         overscanCount={5}
-      >
-        {Row}
-      </List>
+      />
     </div>
   )
 }

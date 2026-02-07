@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Card, Button, Space, message, Spin, Modal, Descriptions } from 'antd';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Card, Button, Space, message, Spin, Modal, Descriptions, Alert } from 'antd';
 import cytoscape from 'cytoscape';
 
 interface DependencyNode {
@@ -21,37 +21,64 @@ interface DependencyGraphData {
   edges: DependencyEdge[];
 }
 
-const DependencyGraph: React.FC = () => {
+interface DependencyGraphProps {
+  sessionId?: string;
+  requests?: any[];
+}
+
+const DependencyGraph: React.FC<DependencyGraphProps> = ({ sessionId, requests: propRequests }) => {
   const cyRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [cy, setCy] = useState<cytoscape.Core | null>(null);
   const [selectedNode, setSelectedNode] = useState<DependencyNode | null>(null);
   const [showNodeDetail, setShowNodeDetail] = useState(false);
 
-  const loadDependencyGraph = async () => {
+  const loadDependencyGraph = useCallback(async () => {
     try {
       setLoading(true);
-      // TODO: 应该从 props 或 context 中获取 session_id 或 requests
-      // 当前发送空列表会导致依赖图为空
-      // 建议: 1) 添加 sessionId prop 并使用 { session_id: sessionId }
-      //      2) 或添加 requests prop 并使用 { requests: requests }
+      
+      // 构建请求体：优先使用sessionId，其次使用propRequests
+      let requestBody: any;
+      
+      if (sessionId) {
+        // 如果有sessionId，使用session_id参数
+        requestBody = { session_id: sessionId };
+      } else if (propRequests && propRequests.length > 0) {
+        // 如果有requests数组，使用requests参数
+        requestBody = { requests: propRequests };
+      } else {
+        // 如果都没有，显示警告并返回
+        message.warning('请提供sessionId或requests数据以生成依赖图');
+        setLoading(false);
+        return;
+      }
+      
       const response = await fetch('/api/v1/analysis/dependency-graph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [] })  // 警告: 空列表会导致空图
+        body: JSON.stringify(requestBody)
       });
 
       if (response.ok) {
         const data: DependencyGraphData = await response.json();
-        renderGraph(data);
-        message.success('依赖关系图加载成功');
+        
+        // 检查是否有数据
+        if (!data.nodes || data.nodes.length === 0) {
+          message.info('当前会话没有足够的数据生成依赖图');
+        } else {
+          renderGraph(data);
+          message.success(`依赖关系图加载成功，包含 ${data.nodes.length} 个节点`);
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || '加载失败');
       }
     } catch (error) {
       message.error('加载失败: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId, propRequests]);
 
   const renderGraph = (data: DependencyGraphData) => {
     if (!cyRef.current) return;
@@ -121,20 +148,36 @@ const DependencyGraph: React.FC = () => {
   };
 
   useEffect(() => {
-    loadDependencyGraph();
-  }, []);
+    // 只有在有sessionId或requests时才加载
+    if (sessionId || (propRequests && propRequests.length > 0)) {
+      loadDependencyGraph();
+    }
+  }, [sessionId, propRequests, loadDependencyGraph]);
 
   return (
     <>
       <Card title="请求依赖关系图">
+        {!sessionId && (!propRequests || propRequests.length === 0) && (
+          <Alert
+            message="提示"
+            description="请提供sessionId或requests数据以生成依赖关系图"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Space style={{ marginBottom: 16 }}>
-          <Button onClick={loadDependencyGraph} loading={loading}>
+          <Button 
+            onClick={loadDependencyGraph} 
+            loading={loading}
+            disabled={!sessionId && (!propRequests || propRequests.length === 0)}
+          >
             刷新图形
           </Button>
-          <Button onClick={() => cy?.fit()}>
+          <Button onClick={() => cy?.fit()} disabled={!cy}>
             适应窗口
           </Button>
-          <Button onClick={() => cy?.reset()}>
+          <Button onClick={() => cy?.reset()} disabled={!cy}>
             重置视图
           </Button>
         </Space>

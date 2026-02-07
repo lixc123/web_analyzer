@@ -289,7 +289,8 @@ async def code_generation_task(task: Task, session_path: str, **kwargs):
 
 async def batch_analysis_task(task: Task, session_ids: List[str], analysis_config: Dict, **kwargs):
     """批量分析任务处理函数"""
-    from app.services.analysis_service import AnalysisService
+    # 使用相对导入避免在不同启动方式下出现 `app.*` / `backend.app.*` 重复加载
+    from .analysis_service import AnalysisService
     
     try:
         analysis_service = AnalysisService()

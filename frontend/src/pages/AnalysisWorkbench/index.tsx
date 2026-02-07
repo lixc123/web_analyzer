@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Layout, Divider, message, Button, Space, Badge, Popconfirm } from 'antd';
-import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { Layout, Divider, message, Button, Space, Badge, Popconfirm, Alert, Tooltip, Select } from 'antd';
+import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, RobotOutlined, FullscreenOutlined } from '@ant-design/icons';
 import SessionSelector from './components/SessionSelector';
 import RequestList from './components/RequestList';
-import QwenTerminal from './components/QwenTerminal';
 import './index.css';
 
 const { Content, Sider } = Layout;
+const { Option } = Select;
 
 export interface CrawlerSession {
   session_id: string;
@@ -39,9 +39,21 @@ const AnalysisWorkbench: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingLoading, setRecordingLoading] = useState(false);
+  const [terminalReady, setTerminalReady] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedAIModel, setSelectedAIModel] = useState<string>('qwen');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // 支持的AI模型
+  const aiModels = [
+    { key: 'qwen', name: 'Qwen', command: 'qwen' },
+    { key: 'codex', name: 'Codex', command: 'codex' },
+    { key: 'claude', name: 'Claude', command: 'claude' },
+    { key: 'gemini', name: 'Gemini', command: 'gemini' }
+  ];
 
   // 加载所有爬虫会话
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/v1/crawler/sessions');
@@ -50,8 +62,8 @@ const AnalysisWorkbench: React.FC = () => {
         setSessions(data.sessions || []);
         
         // 自动选择第一个会话
-        if (data.sessions?.length > 0 && !selectedSession) {
-          setSelectedSession(data.sessions[0]);
+        if (data.sessions?.length > 0) {
+          setSelectedSession((prev) => prev ?? data.sessions[0]);
         }
       }
     } catch (error) {
@@ -60,10 +72,10 @@ const AnalysisWorkbench: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 加载指定会话的请求记录
-  const loadSessionRequests = async (sessionId: string) => {
+  const loadSessionRequests = useCallback(async (sessionId: string) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/v1/crawler/session/${sessionId}/requests?limit=1000`);
@@ -77,7 +89,7 @@ const AnalysisWorkbench: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 会话切换处理
   const handleSessionChange = (session: CrawlerSession) => {
@@ -85,6 +97,38 @@ const AnalysisWorkbench: React.FC = () => {
     loadSessionRequests(session.session_id);
     // 检查会话状态，更新录制状态
     setRecording(session.status === 'running');
+  };
+
+  // 在终端中切换到当前会话
+  const switchTerminalToSession = () => {
+    if (!selectedSession || !terminalReady) {
+      message.warning('请先选择会话并等待终端加载完成');
+      return;
+    }
+
+    const currentModel = aiModels.find(m => m.key === selectedAIModel);
+    const sessionPath = `data/sessions/${selectedSession.session_id}`;
+    
+    // 通过postMessage发送会话切换命令到iframe
+    if (iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage({
+          type: 'switch-session',
+          path: sessionPath,
+          aiModel: selectedAIModel,
+          aiCommand: currentModel?.command || 'qwen'
+        }, '*');
+        message.success(`已切换到会话: ${selectedSession.session_name}，使用模型: ${currentModel?.name}`);
+      } catch (error) {
+        console.error('切换会话失败:', error);
+        message.error('切换会话失败');
+      }
+    }
+  };
+
+  // 切换全屏
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
   };
 
   // 开始录制
@@ -159,13 +203,13 @@ const AnalysisWorkbench: React.FC = () => {
 
   useEffect(() => {
     loadSessions();
-  }, []);
+  }, [loadSessions]);
 
   useEffect(() => {
     if (selectedSession) {
       loadSessionRequests(selectedSession.session_id);
     }
-  }, [selectedSession]);
+  }, [selectedSession, loadSessionRequests]);
 
   return (
     <div className="analysis-workbench">
@@ -247,9 +291,109 @@ const AnalysisWorkbench: React.FC = () => {
         
         <Layout>
           <Content className="workbench-content">
-            <div className="terminal-section">
-              <h3>Qwen Code CLI</h3>
-              <QwenTerminal />
+            <div className="terminal-section" style={{ 
+              height: isFullscreen ? '100vh' : '100%',
+              position: isFullscreen ? 'fixed' : 'relative',
+              top: isFullscreen ? 0 : 'auto',
+              left: isFullscreen ? 0 : 'auto',
+              right: isFullscreen ? 0 : 'auto',
+              bottom: isFullscreen ? 0 : 'auto',
+              zIndex: isFullscreen ? 1000 : 'auto',
+              backgroundColor: '#fff'
+            }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderBottom: '1px solid #d9d9d9',
+                backgroundColor: '#fafafa'
+              }}>
+                <Space>
+                  <RobotOutlined style={{ fontSize: 18, color: '#1890ff' }} />
+                  <h3 style={{ margin: 0 }}>AI 终端</h3>
+                  {terminalReady && (
+                    <Badge status="success" text="已连接" />
+                  )}
+                </Space>
+                <Space>
+                  <Select
+                    value={selectedAIModel}
+                    onChange={setSelectedAIModel}
+                    style={{ width: 120 }}
+                    size="small"
+                  >
+                    {aiModels.map(model => (
+                      <Option key={model.key} value={model.key}>
+                        <RobotOutlined /> {model.name}
+                      </Option>
+                    ))}
+                  </Select>
+                  <Tooltip title={`在当前会话中启动${aiModels.find(m => m.key === selectedAIModel)?.name}`}>
+                    <Button
+                      type="primary"
+                      icon={<PlayCircleOutlined />}
+                      onClick={switchTerminalToSession}
+                      disabled={!selectedSession || !terminalReady}
+                      size="small"
+                    >
+                      启动 {aiModels.find(m => m.key === selectedAIModel)?.name}
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title={isFullscreen ? "退出全屏" : "全屏"}>
+                    <Button
+                      icon={<FullscreenOutlined />}
+                      onClick={toggleFullscreen}
+                      size="small"
+                    />
+                  </Tooltip>
+                </Space>
+              </div>
+
+              {!terminalReady && (
+                <Alert
+                  message="正在连接终端服务..."
+                  description="请确保终端服务运行在 localhost:3001"
+                  type="info"
+                  showIcon
+                  style={{ margin: 16 }}
+                />
+              )}
+
+              <iframe
+                ref={iframeRef}
+                src="http://localhost:3001"
+                style={{
+                  width: '100%',
+                  height: isFullscreen ? 'calc(100vh - 60px)' : 'calc(100% - 60px)',
+                  border: 'none',
+                  display: 'block'
+                }}
+                onLoad={() => {
+                  setTerminalReady(true);
+                  message.success('终端已连接');
+                }}
+                onError={() => {
+                  setTerminalReady(false);
+                  message.error('终端连接失败，请检查终端服务是否运行');
+                }}
+              />
+
+              {selectedSession && terminalReady && (
+                <div style={{
+                  padding: '8px 16px',
+                  borderTop: '1px solid #d9d9d9',
+                  backgroundColor: '#fafafa',
+                  fontSize: 12,
+                  color: '#666'
+                }}>
+                  <Space split="|">
+                    <span>当前会话: <strong>{selectedSession.session_name}</strong></span>
+                    <span>会话路径: <code>data/sessions/{selectedSession.session_id}</code></span>
+                    <span>提示: 点击"启动Qwen"按钮自动切换到当前会话</span>
+                  </Space>
+                </div>
+              )}
             </div>
           </Content>
         </Layout>

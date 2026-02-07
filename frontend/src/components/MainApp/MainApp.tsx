@@ -113,16 +113,19 @@ export const MainApp: React.FC = () => {
           
         default:
           // 调用后端API处理其他命令
-          const response = await fetch('/api/v1/commands/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              command,
-              args,
-              session_id: 'current'
-            })
-          });
-          result = await response.json();
+          {
+            const response = await fetch('/api/v1/commands/execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                command,
+                args,
+                session_id: 'current'
+              })
+            });
+            result = await response.json();
+          }
+          break;
       }
 
       const responseMessage: ChatMessage = {

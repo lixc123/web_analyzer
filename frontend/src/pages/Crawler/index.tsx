@@ -51,6 +51,10 @@ const HOOK_OPTIONS_CONFIG = [
   { key: 'navigation', label: '导航历史', description: 'History API 跟踪', risk: 'medium' },
   { key: 'console', label: 'Console拦截', description: '控制台日志拦截', risk: 'high' },
   { key: 'performance', label: '性能数据', description: '页面性能指标', risk: 'low' },
+  { key: 'websocket', label: 'WebSocket', description: 'WebSocket connect/send/receive 事件', risk: 'medium' },
+  { key: 'crypto', label: 'Crypto', description: 'Web Crypto API (encrypt/decrypt/sign/verify)', risk: 'high' },
+  { key: 'storageExport', label: '存储导出', description: '页面加载后导出 local/session/cookies/indexedDB', risk: 'high' },
+  { key: 'stateManagement', label: '状态管理', description: 'Redux/Vuex/Pinia 状态快照/变更', risk: 'high' },
 ] as const
 
 type HookOptionKey = typeof HOOK_OPTIONS_CONFIG[number]['key']
@@ -65,6 +69,10 @@ const DEFAULT_HOOK_OPTIONS: HookOptions = {
   navigation: false,
   console: false,
   performance: false,
+  websocket: false,
+  crypto: false,
+  storageExport: false,
+  stateManagement: false,
 }
 
 type StopProgress = {
@@ -321,8 +329,21 @@ const CrawlerPage: React.FC = () => {
     mutationFn: ({ sessionId, format }: { sessionId: string; format: 'json' | 'csv' | 'har' }) =>
       crawlerApi.exportSession(sessionId, format),
     onSuccess: (data, variables) => {
-      // 创建下载链接
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      // 创建下载链接（后端返回 {session_id, format, data, message}）
+      const payload = (data as any)?.data
+      const fmt = variables.format
+      let contentType = 'application/json; charset=utf-8'
+      let body: string
+
+      if (fmt === 'csv') {
+        contentType = 'text/csv; charset=utf-8'
+        body = typeof payload === 'string' ? payload : String(payload ?? '')
+      } else {
+        // json/har 均为 JSON
+        body = JSON.stringify(payload ?? data, null, 2)
+      }
+
+      const blob = new Blob([body], { type: contentType })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -830,7 +851,7 @@ const CrawlerPage: React.FC = () => {
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <Form.Item
               label={
-                <Tooltip title="推荐 2-4。当前版本该字段主要用于记录配置，后续可用于自动爬取/自动导航的深度限制。">
+                <Tooltip title="推荐 2-4。语义：1=只访问起始页；2=起始页+其直接链接；3=再向下1层。为防止爆炸式爬取，后端默认最多访问40页（可配置覆盖）。">
                   最大深度
                 </Tooltip>
               }
@@ -844,7 +865,15 @@ const CrawlerPage: React.FC = () => {
               <Input type="number" min={5} max={300} />
             </Form.Item>
 
-            <Form.Item label="跟随重定向" name="follow_redirects" valuePropName="checked">
+            <Form.Item
+              label={
+                <Tooltip title="关闭后：若页面导航发生重定向（最终URL与目标URL不同），不会继续从重定向后的页面提取/入队链接。">
+                  跟随重定向
+                </Tooltip>
+              }
+              name="follow_redirects"
+              valuePropName="checked"
+            >
               <Switch />
             </Form.Item>
 
@@ -894,17 +923,11 @@ const CrawlerPage: React.FC = () => {
                 size="small" 
                 type="link"
                 onClick={() => {
-                  const allEnabled = Object.values(hookOptions).every(v => v)
-                  const newOptions: HookOptions = {
-                    network: !allEnabled,
-                    storage: !allEnabled,
-                    userInteraction: !allEnabled,
-                    form: !allEnabled,
-                    dom: !allEnabled,
-                    navigation: !allEnabled,
-                    console: !allEnabled,
-                    performance: !allEnabled,
-                  }
+                  const allEnabled = HOOK_OPTIONS_CONFIG.every((opt) => hookOptions[opt.key])
+                  const newOptions = HOOK_OPTIONS_CONFIG.reduce((acc, opt) => {
+                    (acc as any)[opt.key] = !allEnabled
+                    return acc
+                  }, {} as HookOptions)
                   setHookOptions(newOptions)
                 }}
               >

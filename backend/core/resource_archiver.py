@@ -33,10 +33,12 @@ class ResourceArchiver:
         session_dir_name = session_id or f"session_{timestamp}"
         self._session_dir = base_output_dir / session_dir_name
         self._responses_dir = self._session_dir / "responses"
+        self._request_bodies_dir = self._session_dir / "request_bodies"
         self._hooks_dir = self._session_dir / "hooks"
 
         self._session_dir.mkdir(parents=True, exist_ok=True)
         self._responses_dir.mkdir(parents=True, exist_ok=True)
+        self._request_bodies_dir.mkdir(parents=True, exist_ok=True)
         self._hooks_dir.mkdir(parents=True, exist_ok=True)
 
         # 分类目录
@@ -67,10 +69,13 @@ class ResourceArchiver:
         self._request_count: int = 0
         self._browser_data_count: int = 0
         self._screenshot_count: int = 0
+        self._js_resources_report: Optional[dict] = None
+        self._crawl_report: Optional[dict] = None
 
         self._log(f"会话目录: {self._session_dir}")
         self._log(f"浏览器数据目录: {self._browser_data_dir}")
         self._log(f"截图目录: {self._screenshots_dir}")
+        self._log(f"请求体目录: {self._request_bodies_dir}")
 
     def set_start_url(self, url: str) -> None:
         """设置录制起始 URL。"""
@@ -85,8 +90,76 @@ class ResourceArchiver:
         return self._responses_dir
 
     @property
+    def request_bodies_dir(self) -> Path:
+        """请求体落盘目录。"""
+        return self._request_bodies_dir
+
+    @property
     def hooks_dir(self) -> Path:
         return self._hooks_dir
+
+    @property
+    def screenshots_dir(self) -> Path:
+        """截图落盘目录（用于确保 session zip 自包含）。"""
+        return self._screenshots_dir
+
+    def set_crawl_report(self, report: Optional[dict]) -> None:
+        """记录自动爬链路摘要（写入 metadata.json）。"""
+        self._crawl_report = report
+
+    def _guess_ext_for_content_type(self, content_type: str, fallback: str = ".bin") -> str:
+        ct = str(content_type or "").split(";", 1)[0].strip().lower()
+        if not ct:
+            return fallback
+        if ct == "application/json":
+            return ".json"
+        if ct in {"application/x-www-form-urlencoded"}:
+            return ".txt"
+        if ct.startswith("text/"):
+            return ".txt"
+        if "javascript" in ct:
+            return ".js"
+        if "xml" in ct:
+            return ".xml"
+        return fallback
+
+    def save_request_body(self, request_id: str, body: bytes, content_type: str = "") -> dict:
+        """保存请求体到 request_bodies/，返回引用信息（类似 proxy artifacts）。"""
+        if not request_id:
+            request_id = f"req_{int(time.time() * 1000)}"
+
+        ct_norm = str(content_type or "").split(";", 1)[0].strip()
+        ext = self._guess_ext_for_content_type(ct_norm, ".bin")
+        filename = f"{request_id}{ext}"
+        full_path = self._request_bodies_dir / filename
+
+        sha256 = hashlib.sha256(body or b"").hexdigest()
+        try:
+            with open(full_path, "wb") as f:
+                f.write(body or b"")
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"保存请求体失败: {exc}")
+
+        try:
+            rel_path = os.path.relpath(full_path, self._session_dir).replace("\\", "/")
+        except Exception:
+            rel_path = str(full_path.name)
+
+        is_binary = True
+        try:
+            (body or b"").decode("utf-8")
+            is_binary = False
+        except Exception:
+            is_binary = True
+
+        return {
+            "relative_path": rel_path,
+            "size": int(len(body or b"")),
+            "sha256": sha256,
+            "content_type": ct_norm or "application/octet-stream",
+            "is_binary": is_binary,
+            "truncated": False,
+        }
 
     def save_response(self, record: RequestRecord, body: bytes) -> str:
         """保存响应体，根据类型分类存储，返回相对会话目录的路径。"""
@@ -226,6 +299,8 @@ class ResourceArchiver:
             "resource_types": resource_types,
             "content_types": content_types,
             "domains": sorted(domains),
+            "js_resources": self._js_resources_report or {},
+            "crawl": self._crawl_report or {},
         }
 
         path = self._session_dir / "metadata.json"
@@ -281,6 +356,7 @@ class ResourceArchiver:
         """
         saved_paths: List[str] = []
         saved_urls: Set[str] = set()
+        failures: List[dict] = []
         start_ts = time.monotonic()
         
         try:
@@ -325,43 +401,70 @@ class ResourceArchiver:
             sem = asyncio.Semaphore(max(1, int(max_concurrency)))
             timeout_ms = max(100, int(per_url_timeout_seconds * 1000))
 
-            async def _fetch_and_save(url: str) -> tuple[str, Optional[str]]:
+            async def _fetch_and_save(url: str) -> tuple[str, Optional[str], Optional[str]]:
                 async with sem:
                     if (time.monotonic() - start_ts) > time_budget_seconds:
-                        return url, None
+                        return url, None, "time_budget_exceeded"
 
                     try:
-                        content = await asyncio.wait_for(
-                            page.evaluate(
-                                """async ({ url, timeoutMs }) => {
-                                    try {
-                                        const controller = new AbortController();
-                                        const timer = setTimeout(() => controller.abort(), timeoutMs);
-                                        const resp = await fetch(url, { signal: controller.signal });
-                                        clearTimeout(timer);
-                                        if (!resp || !resp.ok) return null;
-                                        return await resp.text();
-                                    } catch (e) {
-                                        return null;
-                                    }
-                                }""",
-                                {"url": url, "timeoutMs": timeout_ms},
-                            ),
-                            timeout=per_url_timeout_seconds + 1.0,
-                        )
+                        content = None
+                        err: Optional[str] = None
+
+                        # 1) Prefer Playwright APIRequestContext (not subject to browser CORS)
+                        try:
+                            req_ctx = getattr(page, "request", None)
+                            if req_ctx is not None and hasattr(req_ctx, "get"):
+                                resp = await req_ctx.get(url, timeout=timeout_ms)
+                                ok_attr = getattr(resp, "ok", False) if resp is not None else False
+                                ok = bool(ok_attr() if callable(ok_attr) else ok_attr)
+                                if ok:
+                                    content = await resp.text()
+                                else:
+                                    status = getattr(resp, "status", None)
+                                    err = f"http_{status}" if status is not None else "http_failed"
+                        except Exception as e:
+                            err = str(e)
+
+                        # 2) Fallback to in-page fetch (may fail due to CORS)
+                        if content is None:
+                            result = await asyncio.wait_for(
+                                page.evaluate(
+                                    """async ({ url, timeoutMs }) => {
+                                        try {
+                                            const controller = new AbortController();
+                                            const timer = setTimeout(() => controller.abort(), timeoutMs);
+                                            const resp = await fetch(url, { signal: controller.signal, credentials: 'include' });
+                                            clearTimeout(timer);
+                                            if (!resp) return { ok: false, error: 'no_response' };
+                                            if (!resp.ok) return { ok: false, error: 'http_' + resp.status };
+                                            const text = await resp.text();
+                                            return { ok: true, text: text };
+                                        } catch (e) {
+                                            return { ok: false, error: String(e) };
+                                        }
+                                    }""",
+                                    {"url": url, "timeoutMs": timeout_ms},
+                                ),
+                                timeout=per_url_timeout_seconds + 1.0,
+                            )
+                            if isinstance(result, dict) and result.get("ok") and isinstance(result.get("text"), str):
+                                content = result.get("text")
+                            else:
+                                if isinstance(result, dict) and result.get("error"):
+                                    err = str(result.get("error"))
                     except Exception:
-                        return url, None
+                        return url, None, "exception"
 
                     if not content:
-                        return url, None
+                        return url, None, err or "empty"
 
                     rel_path = await asyncio.to_thread(self._save_js_content, url, content)
-                    return url, rel_path
+                    return url, rel_path, None
 
             tasks = [asyncio.create_task(_fetch_and_save(url)) for url in filtered_urls]
             done_count = 0
             for fut in asyncio.as_completed(tasks):
-                url, rel_path = await fut
+                url, rel_path, err = await fut
                 done_count += 1
                 if progress_callback is not None:
                     try:
@@ -370,13 +473,31 @@ class ResourceArchiver:
                         pass
                 if rel_path:
                     saved_paths.append(rel_path)
+                else:
+                    failures.append({"url": url, "error": err or "unknown"})
                 if (time.monotonic() - start_ts) > time_budget_seconds:
                     break
                     
         except Exception as exc:
             self._log(f"获取 JS 资源列表失败: {exc}")
         
+        report = {
+            "attempted": int(len(filtered_urls) if 'filtered_urls' in locals() else 0),
+            "saved": int(len(saved_paths)),
+            "failed": int(len(failures)),
+            "failures_sample": failures[: min(12, len(failures))],
+            "time_budget_seconds": float(time_budget_seconds),
+            "duration_seconds": round(float(time.monotonic() - start_ts), 3),
+        }
+        self._js_resources_report = report
+        try:
+            (self._session_dir / "js_resources_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        except Exception:
+            pass
+
         self._log(f"共保存 {len(saved_paths)} 个 JS 文件")
+        if failures:
+            self._log(f"[WARNING] JS 资源保存失败: {len(failures)}/{len(saved_paths) + len(failures)}（跨域/CORS/网络/超时等）")
         return saved_paths
 
     def _save_js_content(self, url: str, content: str) -> Optional[str]:
@@ -631,11 +752,20 @@ class ResourceArchiver:
         try:
             self._screenshot_count += 1
             timestamp = datetime.now().strftime("%H%M%S_%f")[:-3]
+
+            rel_screenshot_path = screenshot_path
+            try:
+                sp = Path(str(screenshot_path or ""))
+                if sp.is_absolute():
+                    # 只要落在 session_dir 内，就记录相对路径，保证 zip 自包含可读
+                    rel_screenshot_path = str(sp.relative_to(self._session_dir)).replace("\\", "/")
+            except Exception:
+                rel_screenshot_path = screenshot_path
             
             screenshot_info = {
                 "reason": reason,
                 "timestamp": datetime.now().isoformat(),
-                "screenshot_path": screenshot_path,
+                "screenshot_path": rel_screenshot_path,
                 "screenshot_number": self._screenshot_count
             }
             

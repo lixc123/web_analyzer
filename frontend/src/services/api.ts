@@ -6,25 +6,11 @@ const getApiBaseURL = () => {
   // 优先使用环境变量配置
   const envBaseURL = import.meta.env.VITE_API_BASE_URL;
   if (envBaseURL) {
-    return `${envBaseURL}/api/v1`;
+    return envBaseURL.endsWith('/api/v1') ? envBaseURL : `${envBaseURL}/api/v1`;
   }
 
-  // 如果没有配置环境变量，使用动态检测
-  const hostname = window.location.hostname;
-  const protocol = window.location.protocol;
-
-  // 如果是localhost或127.0.0.1，直接使用localhost
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:8000/api/v1';
-  }
-
-  // 生产环境：使用相对路径（假设前后端同域）
-  if (protocol === 'https:') {
-    return `https://${hostname}/api/v1`;
-  }
-
-  // 局域网IP，假设后端在同一台机器的8000端口
-  return `http://${hostname.replace(/:\d+$/, '')}:8000/api/v1`;
+  // 未配置环境变量时，默认使用相对路径（适配 Vite 代理 / 反向代理同域部署）。
+  return '/api/v1';
 };
 
 // 创建axios实例
@@ -154,6 +140,10 @@ export interface HookOptions {
   navigation: boolean        // 导航历史跟踪
   console: boolean           // Console日志拦截
   performance: boolean       // 性能数据监控
+  websocket: boolean         // WebSocket 拦截
+  crypto: boolean            // Web Crypto API 拦截
+  storageExport: boolean     // 存储数据完整导出
+  stateManagement: boolean   // 状态管理 Hook
 }
 
 export interface CrawlerConfig {

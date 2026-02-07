@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Card, Select, Button, message, Spin, Alert, Space, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons';
 
@@ -59,7 +59,7 @@ const Terminal: React.FC = () => {
   ];
 
   // 加载会话列表
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       const response = await fetch('/api/v1/terminal/sessions');
       if (!response.ok) throw new Error('Failed to load sessions');
@@ -75,20 +75,20 @@ const Terminal: React.FC = () => {
       message.error('加载会话列表失败');
       setError('无法加载会话列表');
     }
-  };
+  }, []);
 
   // 检查终端服务是否可用
-  const checkTerminalService = async () => {
+  const checkTerminalService = useCallback(async () => {
     try {
       const response = await fetch('http://localhost:3001/health');
       return response.ok;
     } catch {
       return false;
     }
-  };
+  }, []);
 
   // 加载终端iframe
-  const loadTerminal = () => {
+  const loadTerminal = useCallback(() => {
     setLoading(true);
     setError(null);
     setStatus('正在连接终端服务...');
@@ -111,9 +111,7 @@ const Terminal: React.FC = () => {
 
     // 设置超时检查
     const timeout = setTimeout(() => {
-      if (!terminalReady) {
-        handleError();
-      }
+      handleError();
     }, 5000);
 
     iframe.onload = () => {
@@ -128,7 +126,7 @@ const Terminal: React.FC = () => {
 
     // 刷新iframe
     iframe.src = 'http://localhost:3001';
-  };
+  }, []);
 
   // 切换会话和AI模型
   const switchToSession = () => {
@@ -180,7 +178,7 @@ const Terminal: React.FC = () => {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [loadSessions, loadTerminal]);
 
   // 定期检查服务状态
   useEffect(() => {
@@ -194,7 +192,7 @@ const Terminal: React.FC = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [terminalReady]);
+  }, [terminalReady, checkTerminalService, loadTerminal]);
 
   return (
     <div className="terminal-page" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>

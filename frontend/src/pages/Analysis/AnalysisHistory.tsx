@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useState, useEffect } from 'react'
 import {
   Card,
   Table,
@@ -22,7 +22,7 @@ import {
   EyeOutlined,
   DownloadOutlined,
   ReloadOutlined,
-  CompareOutlined,
+  DiffOutlined,
   ExclamationCircleOutlined,
   CheckCircleOutlined,
   WarningOutlined,
@@ -66,17 +66,7 @@ const AnalysisHistory: React.FC = () => {
   const [compareRecords, setCompareRecords] = useState<AnalysisRecord[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
-  useEffect(() => {
-    loadSessions()
-  }, [])
-
-  useEffect(() => {
-    if (selectedSession) {
-      loadHistory()
-    }
-  }, [selectedSession])
-
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       const response = await axios.get('/api/v1/crawler/sessions')
       setSessions(response.data.sessions || [])
@@ -84,14 +74,12 @@ const AnalysisHistory: React.FC = () => {
       console.error('加载会话列表失败:', error)
       message.error('加载会话列表失败')
     }
-  }
+  }, [])
 
-  const loadHistory = async () => {
-    if (!selectedSession) return
-
+  const loadHistory = useCallback(async (sessionId: string) => {
     setLoading(true)
     try {
-      const response = await axios.get(`/api/v1/analysis/history/${selectedSession}`, {
+      const response = await axios.get(`/api/v1/analysis/history/${sessionId}`, {
         params: { limit: 100 }
       })
       setHistory(response.data.history || [])
@@ -101,7 +89,17 @@ const AnalysisHistory: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions])
+
+  useEffect(() => {
+    if (selectedSession) {
+      loadHistory(selectedSession)
+    }
+  }, [selectedSession, loadHistory])
 
   const handleViewDetail = (record: AnalysisRecord) => {
     setSelectedRecord(record)
@@ -299,7 +297,7 @@ const AnalysisHistory: React.FC = () => {
               ))}
             </Select>
             <Button
-              icon={<CompareOutlined />}
+              icon={<DiffOutlined />}
               onClick={handleCompare}
               disabled={selectedRowKeys.length < 2}
               size="small"
@@ -308,7 +306,8 @@ const AnalysisHistory: React.FC = () => {
             </Button>
             <Button
               icon={<ReloadOutlined />}
-              onClick={loadHistory}
+              onClick={() => selectedSession && loadHistory(selectedSession)}
+              disabled={!selectedSession}
               loading={loading}
               size="small"
             >
