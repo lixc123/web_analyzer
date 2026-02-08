@@ -18,7 +18,6 @@ import {
   BugOutlined,
   DashboardOutlined,
   BarChartOutlined,
-  RobotOutlined,
   CodeOutlined,
   SettingOutlined,
   UserOutlined,
@@ -99,8 +98,8 @@ const MainLayout: React.FC = () => {
     {
       key: '/workbench',
       icon: <DashboardOutlined />,
-      label: '分析工作台',
-      title: '会话 + AI终端联动'
+      label: 'AI分析工作台',
+      title: '会话录制 + 请求列表 + AI终端'
     },
     {
       key: '/code-generator',
@@ -113,12 +112,6 @@ const MainLayout: React.FC = () => {
       icon: <HistoryOutlined />,
       label: '请求录制',
       title: '录制和重放HTTP请求'
-    },
-    {
-      key: '/terminal',
-      icon: <RobotOutlined />,
-      label: 'AI终端',
-      title: 'AI分析助手'
     },
     {
       key: '/settings',

@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { Layout, Divider, message, Button, Space, Badge, Popconfirm, Alert, Tooltip, Select } from 'antd';
 import { PlayCircleOutlined, PauseCircleOutlined, ReloadOutlined, RobotOutlined, FullscreenOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import SessionSelector from './components/SessionSelector';
 import RequestList from './components/RequestList';
 import { getTerminalServiceLabel, getTerminalServiceUrl } from '@/utils/terminalService';
@@ -19,6 +20,9 @@ export interface CrawlerSession {
   total_requests: number;
   completed_requests: number;
   current_url?: string;
+  source?: 'crawler' | 'directory';
+  terminal_path?: string;
+  description?: string;
 }
 
 export interface RequestRecord {
@@ -34,6 +38,7 @@ export interface RequestRecord {
 }
 
 const AnalysisWorkbench: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedSession, setSelectedSession] = useState<CrawlerSession | null>(null);
   const [sessions, setSessions] = useState<CrawlerSession[]>([]);
   const [requests, setRequests] = useState<RequestRecord[]>([]);
@@ -44,6 +49,7 @@ const AnalysisWorkbench: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedAIModel, setSelectedAIModel] = useState<string>('qwen');
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const hasShownDirectoryHintRef = useRef(false);
   const terminalServiceUrl = useMemo(() => getTerminalServiceUrl(), []);
   const terminalServiceLabel = useMemo(
     () => getTerminalServiceLabel(terminalServiceUrl),
@@ -58,6 +64,47 @@ const AnalysisWorkbench: React.FC = () => {
     { key: 'gemini', name: 'Gemini', command: 'gemini' }
   ];
 
+  const mapCrawlerSession = (session: Partial<CrawlerSession> & Record<string, unknown>): CrawlerSession => {
+    const sessionId = String(session.session_id || session.session_name || '').trim();
+    return {
+      session_id: sessionId,
+      session_name: String(session.session_name || sessionId || '未命名会话'),
+      url: String(session.url || session.current_url || ''),
+      status: String(session.status || 'completed'),
+      created_at: String(session.created_at || session.updated_at || new Date().toISOString()),
+      updated_at: String(session.updated_at || session.created_at || new Date().toISOString()),
+      total_requests: Number(session.total_requests || 0),
+      completed_requests: Number(session.completed_requests || 0),
+      current_url: session.current_url ? String(session.current_url) : undefined,
+      source: 'crawler',
+      terminal_path: sessionId ? `data/sessions/${sessionId}` : undefined,
+      description: '爬虫录制会话'
+    };
+  };
+
+  const mapDirectorySession = (session: Record<string, unknown>): CrawlerSession => {
+    const rawPath = String(session.path || '').trim();
+    const inferredId = rawPath.split(/[\\/]/).filter(Boolean).pop() || String(session.name || '').trim() || `directory_${Date.now()}`;
+
+    return {
+      session_id: inferredId,
+      session_name: String(session.name || inferredId),
+      url: '',
+      status: 'ready',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      total_requests: 0,
+      completed_requests: 0,
+      source: 'directory',
+      terminal_path: rawPath || undefined,
+      description: String(session.description || '目录会话')
+    };
+  };
+
+  const isCrawlerSession = (session: CrawlerSession | null): session is CrawlerSession => {
+    return Boolean(session && session.source !== 'directory');
+  };
+
   // 加载所有爬虫会话
   const loadSessions = useCallback(async () => {
     try {
@@ -65,16 +112,50 @@ const AnalysisWorkbench: React.FC = () => {
       const response = await fetch('/api/v1/crawler/sessions');
       if (response.ok) {
         const data = await response.json();
-        setSessions(data.sessions || []);
-        
-        // 自动选择第一个会话
-        if (data.sessions?.length > 0) {
-          setSelectedSession((prev) => prev ?? data.sessions[0]);
+        const crawlerSessions = Array.isArray(data.sessions)
+          ? data.sessions.map((session: Record<string, unknown>) => mapCrawlerSession(session)).filter((session: CrawlerSession) => Boolean(session.session_id))
+          : [];
+
+        if (crawlerSessions.length > 0) {
+          setSessions(crawlerSessions);
+          setSelectedSession((prev) => {
+            if (prev && crawlerSessions.some((session) => session.session_id === prev.session_id)) {
+              return prev;
+            }
+            return crawlerSessions[0];
+          });
+          return;
         }
+      }
+
+      const terminalResponse = await fetch('/api/v1/terminal/sessions');
+      if (terminalResponse.ok) {
+        const terminalData = await terminalResponse.json();
+        const directorySessions = Array.isArray(terminalData)
+          ? terminalData.map((session: Record<string, unknown>) => mapDirectorySession(session))
+          : [];
+
+        setSessions(directorySessions);
+        setSelectedSession((prev) => {
+          if (prev && directorySessions.some((session) => session.session_id === prev.session_id)) {
+            return prev;
+          }
+          return directorySessions[0] || null;
+        });
+
+        if (directorySessions.length > 0 && !hasShownDirectoryHintRef.current) {
+          hasShownDirectoryHintRef.current = true;
+          message.info('未发现爬虫会话，已切换到目录会话模式（可直接启动AI终端）');
+        }
+      } else {
+        setSessions([]);
+        setSelectedSession(null);
       }
     } catch (error) {
       console.error('加载会话失败:', error);
       message.error('加载会话失败');
+      setSessions([]);
+      setSelectedSession(null);
     } finally {
       setLoading(false);
     }
@@ -100,6 +181,11 @@ const AnalysisWorkbench: React.FC = () => {
   // 会话切换处理
   const handleSessionChange = (session: CrawlerSession) => {
     setSelectedSession(session);
+    if (session.source === 'directory') {
+      setRequests([]);
+      setRecording(false);
+      return;
+    }
     loadSessionRequests(session.session_id);
     // 检查会话状态，更新录制状态
     setRecording(session.status === 'running');
@@ -113,7 +199,7 @@ const AnalysisWorkbench: React.FC = () => {
     }
 
     const currentModel = aiModels.find(m => m.key === selectedAIModel);
-    const sessionPath = `data/sessions/${selectedSession.session_id}`;
+    const sessionPath = selectedSession.terminal_path || `data/sessions/${selectedSession.session_id}`;
     
     // 通过postMessage发送会话切换命令到iframe
     if (iframeRef.current?.contentWindow) {
@@ -141,6 +227,11 @@ const AnalysisWorkbench: React.FC = () => {
   const handleStartRecording = async () => {
     if (!selectedSession) {
       message.warning('请先选择一个会话');
+      return;
+    }
+
+    if (!isCrawlerSession(selectedSession)) {
+      message.warning('目录会话不支持录制，请先创建或选择爬虫会话');
       return;
     }
 
@@ -175,6 +266,11 @@ const AnalysisWorkbench: React.FC = () => {
       return;
     }
 
+    if (!isCrawlerSession(selectedSession)) {
+      message.warning('目录会话不支持录制，请先创建或选择爬虫会话');
+      return;
+    }
+
     setRecordingLoading(true);
     try {
       const response = await fetch(`/api/v1/crawler/stop-recording/${selectedSession.session_id}`, {
@@ -202,8 +298,10 @@ const AnalysisWorkbench: React.FC = () => {
 
   // 刷新请求列表
   const handleRefreshRequests = () => {
-    if (selectedSession) {
+    if (selectedSession && selectedSession.source !== 'directory') {
       loadSessionRequests(selectedSession.session_id);
+    } else {
+      loadSessions();
     }
   };
 
@@ -212,8 +310,10 @@ const AnalysisWorkbench: React.FC = () => {
   }, [loadSessions]);
 
   useEffect(() => {
-    if (selectedSession) {
+    if (selectedSession && selectedSession.source !== 'directory') {
       loadSessionRequests(selectedSession.session_id);
+    } else {
+      setRequests([]);
     }
   }, [selectedSession, loadSessionRequests]);
 
@@ -253,7 +353,15 @@ const AnalysisWorkbench: React.FC = () => {
                   >
                     刷新
                   </Button>
-                  {recording ? (
+                  {selectedSession?.source === 'directory' ? (
+                    <Button
+                      type="default"
+                      onClick={() => navigate('/crawler')}
+                      size="small"
+                    >
+                      前往爬虫创建会话
+                    </Button>
+                  ) : recording ? (
                     <Popconfirm
                       title="确定要停止录制吗？"
                       description="停止后将无法继续录制当前会话"
@@ -395,8 +503,8 @@ const AnalysisWorkbench: React.FC = () => {
                 }}>
                   <Space split="|">
                     <span>当前会话: <strong>{selectedSession.session_name}</strong></span>
-                    <span>会话路径: <code>data/sessions/{selectedSession.session_id}</code></span>
-                    <span>提示: 点击“启动 AI”按钮自动切换到当前会话</span>
+                    <span>会话路径: <code>{selectedSession.terminal_path || `data/sessions/${selectedSession.session_id}`}</code></span>
+                    <span>模式: {selectedSession.source === 'directory' ? '目录会话（仅AI终端）' : '爬虫会话（录制+AI）'}</span>
                   </Space>
                 </div>
               )}

@@ -245,8 +245,8 @@ const HomePage: React.FC = () => {
           <Button icon={<BarChartOutlined />} href="/analysis">
             查看数据分析
           </Button>
-          <Button icon={<RobotOutlined />} href="/terminal">
-            AI 智能分析
+          <Button icon={<RobotOutlined />} href="/workbench">
+            AI 分析工作台
           </Button>
           <Button icon={<CheckCircleOutlined />} onClick={() => refetchHealth()}>
             检查系统状态

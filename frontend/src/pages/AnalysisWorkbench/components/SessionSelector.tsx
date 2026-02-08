@@ -24,6 +24,7 @@ const SessionSelector: React.FC<SessionSelectorProps> = ({
       case 'completed': return 'success';
       case 'failed': return 'error';
       case 'starting': return 'warning';
+      case 'ready': return 'success';
       default: return 'default';
     }
   };
@@ -34,6 +35,7 @@ const SessionSelector: React.FC<SessionSelectorProps> = ({
       case 'completed': return '已完成';
       case 'failed': return '失败';
       case 'starting': return '启动中';
+      case 'ready': return '可用';
       default: return status;
     }
   };
@@ -78,10 +80,10 @@ const SessionSelector: React.FC<SessionSelectorProps> = ({
                 />
               </div>
               <div className="session-details">
-                <Tooltip title={session.url}>
+                <Tooltip title={session.url || session.description || '-'}>
                   <span className="session-url">
                     <GlobalOutlined /> {session.url?.length > 30 ? 
-                      session.url.substring(0, 30) + '...' : session.url}
+                      session.url.substring(0, 30) + '...' : (session.url || session.description || '-')}
                   </span>
                 </Tooltip>
               </div>

@@ -7,7 +7,6 @@ import HomePage from '@pages/Home'
 import CrawlerPage from '@pages/Crawler'
 import AnalysisPage from '@pages/Analysis'
 import AnalysisWorkbench from '@pages/AnalysisWorkbench'
-import TerminalPage from '@pages/Terminal'
 import SettingsPage from '@pages/Settings'
 import ProxyCapturePage from '@pages/ProxyCapture'
 import NativeHookPage from '@pages/NativeHook'
@@ -68,13 +67,9 @@ const App: React.FC = () => {
                 <RequestRecorderPage />
               </ErrorBoundary>
             } />
-            <Route path="terminal" element={
-              <ErrorBoundary componentName="TerminalPage">
-                <TerminalPage />
-              </ErrorBoundary>
-            } />
+            <Route path="terminal" element={<Navigate to="/workbench" replace />} />
             {/* Backward-compatible alias */}
-            <Route path="ai" element={<Navigate to="/terminal" replace />} />
+            <Route path="ai" element={<Navigate to="/workbench" replace />} />
             <Route path="settings" element={
               <ErrorBoundary componentName="SettingsPage">
                 <SettingsPage />
